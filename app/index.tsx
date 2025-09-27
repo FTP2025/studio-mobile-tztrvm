@@ -10,7 +10,7 @@ import TransformControls from '../components/TransformControls';
 import SimpleBottomSheet from '../components/BottomSheet';
 import Icon from '../components/Icon';
 
-export default function RobloxStudioMobile() {
+export default function GRANTIC() {
   const {
     shapes,
     selectedShapeId,
