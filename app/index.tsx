@@ -1,52 +1,102 @@
+
 import React, { useState } from 'react';
-import { Text, View, Image, TouchableOpacity } from 'react-native';
-import { commonStyles, colors } from '../styles/commonStyles';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { colors, commonStyles } from '../styles/commonStyles';
+import { useShapes } from '../hooks/useShapes';
+import Viewport3D from '../components/Viewport3D';
+import Toolbox from '../components/Toolbox';
+import TransformControls from '../components/TransformControls';
 import SimpleBottomSheet from '../components/BottomSheet';
+import Icon from '../components/Icon';
 
+export default function RobloxStudioMobile() {
+  const {
+    shapes,
+    selectedShapeId,
+    addShape,
+    selectShape,
+    updateShape,
+    deleteShape,
+    clearSelection,
+    getSelectedShape,
+  } = useShapes();
 
-export default function MainScreen() {
-  const [isBottomSheetVisible, setIsBottomSheetVisible] = useState(false);
+  const [isPropertiesVisible, setIsPropertiesVisible] = useState(false);
 
-  const handleOpenBottomSheet = () => {
-    setIsBottomSheetVisible(true);
+  const handleShapeSelect = (id: string) => {
+    selectShape(id);
+    setIsPropertiesVisible(true);
   };
 
+  const handleShapeDeselect = () => {
+    clearSelection();
+    setIsPropertiesVisible(false);
+  };
+
+  const selectedShape = getSelectedShape();
+
   return (
-      <SafeAreaView style={commonStyles.container}>
-        <View style={commonStyles.content}>
-          <Image
-            source={require('../assets/images/final_quest_240x240.png')}
-            style={{ width: 180, height: 180 }}
-            resizeMode="contain"
-          />
-          <Text style={commonStyles.title}>This is a placeholder app.</Text>
-          <Text style={commonStyles.text}>Your app will be displayed here when it's ready.</Text>
-
-          <TouchableOpacity
-            style={{
-              backgroundColor: colors.primary,
-              paddingHorizontal: 24,
-              paddingVertical: 12,
-              borderRadius: 8,
-              marginTop: 30,
-            }}
-            onPress={handleOpenBottomSheet}
-          >
-            <Text style={{
-              color: colors.text,
-              fontSize: 16,
-              fontWeight: '600',
-            }}>
-              Open Bottom Sheet
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <SimpleBottomSheet
-          isVisible={isBottomSheetVisible}
-          onClose={() => setIsBottomSheetVisible(false)}
+    <SafeAreaView style={styles.container}>
+      {/* Main Viewport */}
+      <View style={styles.viewport}>
+        <Viewport3D
+          shapes={shapes}
+          onShapeSelect={handleShapeSelect}
+          onShapeDeselect={handleShapeDeselect}
         />
-      </SafeAreaView>
+        
+        {/* Properties Button */}
+        {selectedShape && (
+          <TouchableOpacity
+            style={styles.propertiesButton}
+            onPress={() => setIsPropertiesVisible(true)}
+          >
+            <Icon name="settings-outline" size={20} color={colors.backgroundAlt} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Bottom Toolbox */}
+      <Toolbox onAddShape={addShape} />
+
+      {/* Properties Bottom Sheet */}
+      <SimpleBottomSheet
+        isVisible={isPropertiesVisible}
+        onClose={() => setIsPropertiesVisible(false)}
+      >
+        <TransformControls
+          selectedShape={selectedShape}
+          onUpdateShape={updateShape}
+          onDeleteShape={(id) => {
+            deleteShape(id);
+            setIsPropertiesVisible(false);
+          }}
+        />
+      </SimpleBottomSheet>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  viewport: {
+    flex: 1,
+    position: 'relative',
+  },
+  propertiesButton: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    width: 48,
+    height: 48,
+    backgroundColor: colors.primary,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...commonStyles.shadow,
+  },
+});
