@@ -10,7 +10,11 @@ export const useShapes = () => {
     const newShape: Shape = {
       id: `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type,
-      position: { x: 0, y: 0, z: 0 },
+      position: { 
+        x: Math.random() * 2 - 1, // Random position between -1 and 1
+        y: Math.random() * 2 - 1, 
+        z: Math.random() * 2 - 1 
+      },
       rotation: { x: 0, y: 0, z: 0 },
       scale: { x: 1, y: 1, z: 1 },
       color: '#0066FF',
@@ -59,6 +63,92 @@ export const useShapes = () => {
     return shapes.find(shape => shape.id === selectedShapeId) || null;
   }, [shapes, selectedShapeId]);
 
+  const duplicateShape = useCallback((id: string) => {
+    const shapeToDuplicate = shapes.find(shape => shape.id === id);
+    if (!shapeToDuplicate) return;
+
+    const newShape: Shape = {
+      ...shapeToDuplicate,
+      id: `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      position: {
+        x: shapeToDuplicate.position.x + 1,
+        y: shapeToDuplicate.position.y + 1,
+        z: shapeToDuplicate.position.z,
+      },
+      selected: false,
+    };
+
+    setShapes(prev => {
+      const updated = prev.map(shape => ({ ...shape, selected: false }));
+      return [...updated, { ...newShape, selected: true }];
+    });
+    
+    setSelectedShapeId(newShape.id);
+    console.log('Duplicated shape:', newShape);
+  }, [shapes]);
+
+  const moveShape = useCallback((id: string, delta: { x: number; y: number; z: number }) => {
+    setShapes(prev => prev.map(shape => 
+      shape.id === id ? {
+        ...shape,
+        position: {
+          x: shape.position.x + delta.x,
+          y: shape.position.y + delta.y,
+          z: shape.position.z + delta.z,
+        }
+      } : shape
+    ));
+  }, []);
+
+  const rotateShape = useCallback((id: string, delta: { x: number; y: number; z: number }) => {
+    setShapes(prev => prev.map(shape => 
+      shape.id === id ? {
+        ...shape,
+        rotation: {
+          x: (shape.rotation.x + delta.x) % 360,
+          y: (shape.rotation.y + delta.y) % 360,
+          z: (shape.rotation.z + delta.z) % 360,
+        }
+      } : shape
+    ));
+  }, []);
+
+  const scaleShape = useCallback((id: string, delta: { x: number; y: number; z: number }) => {
+    setShapes(prev => prev.map(shape => 
+      shape.id === id ? {
+        ...shape,
+        scale: {
+          x: Math.max(0.01, shape.scale.x + delta.x),
+          y: Math.max(0.01, shape.scale.y + delta.y),
+          z: Math.max(0.01, shape.scale.z + delta.z),
+        }
+      } : shape
+    ));
+  }, []);
+
+  const resetShapeTransform = useCallback((id: string) => {
+    updateShape(id, {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
+    });
+  }, [updateShape]);
+
+  const snapShapeToGrid = useCallback((id: string, gridSize: number = 0.5) => {
+    const shape = shapes.find(s => s.id === id);
+    if (!shape) return;
+
+    const snapValue = (val: number) => Math.round(val / gridSize) * gridSize;
+    
+    updateShape(id, {
+      position: {
+        x: snapValue(shape.position.x),
+        y: snapValue(shape.position.y),
+        z: snapValue(shape.position.z),
+      }
+    });
+  }, [shapes, updateShape]);
+
   return {
     shapes,
     selectedShapeId,
@@ -68,5 +158,11 @@ export const useShapes = () => {
     deleteShape,
     clearSelection,
     getSelectedShape,
+    duplicateShape,
+    moveShape,
+    rotateShape,
+    scaleShape,
+    resetShapeTransform,
+    snapShapeToGrid,
   };
 };

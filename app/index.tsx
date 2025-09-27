@@ -3,14 +3,17 @@ import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '../styles/commonStyles';
-import { useShapes } from '../hooks/useShapes';
 import Viewport3D from '../components/Viewport3D';
 import Toolbox from '../components/Toolbox';
 import TransformControls from '../components/TransformControls';
 import SimpleBottomSheet from '../components/BottomSheet';
 import Icon from '../components/Icon';
+import { useShapes } from '../hooks/useShapes';
 
-export default function GRANTIC() {
+const GRANTIC: React.FC = () => {
+  const [isToolboxVisible, setIsToolboxVisible] = useState(false);
+  const [isTransformVisible, setIsTransformVisible] = useState(false);
+  
   const {
     shapes,
     selectedShapeId,
@@ -20,83 +23,169 @@ export default function GRANTIC() {
     deleteShape,
     clearSelection,
     getSelectedShape,
+    duplicateShape,
   } = useShapes();
-
-  const [isPropertiesVisible, setIsPropertiesVisible] = useState(false);
 
   const handleShapeSelect = (id: string) => {
     selectShape(id);
-    setIsPropertiesVisible(true);
+    setIsTransformVisible(true);
+    console.log('Shape selected, opening transform controls');
   };
 
   const handleShapeDeselect = () => {
     clearSelection();
-    setIsPropertiesVisible(false);
+    setIsTransformVisible(false);
+    console.log('Shape deselected, closing transform controls');
   };
 
-  const selectedShape = getSelectedShape();
+  const handleAddShape = (type: any) => {
+    addShape(type);
+    setIsToolboxVisible(false);
+    setIsTransformVisible(true);
+    console.log('Shape added, opening transform controls');
+  };
+
+  const handleUpdateShape = (id: string, updates: any) => {
+    updateShape(id, updates);
+  };
+
+  const handleDeleteShape = (id: string) => {
+    deleteShape(id);
+    setIsTransformVisible(false);
+    console.log('Shape deleted, closing transform controls');
+  };
+
+  const handleDuplicateShape = () => {
+    if (selectedShapeId) {
+      duplicateShape(selectedShapeId);
+      console.log('Shape duplicated');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Main Viewport */}
-      <View style={styles.viewport}>
-        <Viewport3D
-          shapes={shapes}
-          onShapeSelect={handleShapeSelect}
-          onShapeDeselect={handleShapeDeselect}
-        />
-        
-        {/* Properties Button */}
-        {selectedShape && (
+      <Viewport3D
+        shapes={shapes}
+        onShapeSelect={handleShapeSelect}
+        onShapeDeselect={handleShapeDeselect}
+        selectedShapeId={selectedShapeId}
+      />
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity
+          style={[
+            styles.navButton,
+            isToolboxVisible && styles.navButtonActive
+          ]}
+          onPress={() => {
+            setIsToolboxVisible(!isToolboxVisible);
+            if (isTransformVisible) setIsTransformVisible(false);
+          }}
+        >
+          <Icon 
+            name="add-circle-outline" 
+            size={24} 
+            color={isToolboxVisible ? colors.backgroundAlt : colors.text} 
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.navButton,
+            isTransformVisible && styles.navButtonActive
+          ]}
+          onPress={() => {
+            if (selectedShapeId) {
+              setIsTransformVisible(!isTransformVisible);
+              if (isToolboxVisible) setIsToolboxVisible(false);
+            } else {
+              console.log('No shape selected for transform');
+            }
+          }}
+          disabled={!selectedShapeId}
+        >
+          <Icon 
+            name="options-outline" 
+            size={24} 
+            color={isTransformVisible ? colors.backgroundAlt : 
+                   selectedShapeId ? colors.text : colors.textSecondary} 
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navButton}
+          onPress={() => {
+            handleShapeDeselect();
+            setIsToolboxVisible(false);
+            setIsTransformVisible(false);
+          }}
+        >
+          <Icon name="home-outline" size={24} color={colors.text} />
+        </TouchableOpacity>
+
+        {selectedShapeId && (
           <TouchableOpacity
-            style={styles.propertiesButton}
-            onPress={() => setIsPropertiesVisible(true)}
+            style={styles.navButton}
+            onPress={handleDuplicateShape}
           >
-            <Icon name="settings-outline" size={20} color={colors.backgroundAlt} />
+            <Icon name="copy-outline" size={24} color={colors.text} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Bottom Toolbox */}
-      <Toolbox onAddShape={addShape} />
-
-      {/* Properties Bottom Sheet */}
+      {/* Toolbox Bottom Sheet */}
       <SimpleBottomSheet
-        isVisible={isPropertiesVisible}
-        onClose={() => setIsPropertiesVisible(false)}
+        isVisible={isToolboxVisible}
+        onClose={() => setIsToolboxVisible(false)}
+      >
+        <Toolbox onAddShape={handleAddShape} />
+      </SimpleBottomSheet>
+
+      {/* Transform Controls Bottom Sheet */}
+      <SimpleBottomSheet
+        isVisible={isTransformVisible}
+        onClose={() => setIsTransformVisible(false)}
       >
         <TransformControls
-          selectedShape={selectedShape}
-          onUpdateShape={updateShape}
-          onDeleteShape={(id) => {
-            deleteShape(id);
-            setIsPropertiesVisible(false);
-          }}
+          selectedShape={getSelectedShape()}
+          onUpdateShape={handleUpdateShape}
+          onDeleteShape={handleDeleteShape}
         />
       </SimpleBottomSheet>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  viewport: {
-    flex: 1,
-    position: 'relative',
-  },
-  propertiesButton: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-    width: 48,
-    height: 48,
-    backgroundColor: colors.primary,
-    borderRadius: 24,
+  bottomNav: {
+    flexDirection: 'row',
+    backgroundColor: colors.backgroundAlt,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    justifyContent: 'space-around',
     alignItems: 'center',
-    justifyContent: 'center',
     ...commonStyles.shadow,
   },
+  navButton: {
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 48,
+    minHeight: 48,
+  },
+  navButtonActive: {
+    backgroundColor: colors.primary,
+  },
 });
+
+export default GRANTIC;

@@ -1,5 +1,5 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,18 @@ import {
   PanResponder,
   Dimensions,
   TouchableOpacity,
+  Animated,
+  Vibration,
 } from 'react-native';
 import { colors, commonStyles } from '../styles/commonStyles';
 import { Shape, ViewportCamera } from '../types';
+import Icon from './Icon';
 
 interface Viewport3DProps {
   shapes: Shape[];
   onShapeSelect: (id: string) => void;
   onShapeDeselect: () => void;
+  selectedShapeId?: string | null;
 }
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -23,113 +27,313 @@ const Viewport3D: React.FC<Viewport3DProps> = ({
   shapes,
   onShapeSelect,
   onShapeDeselect,
+  selectedShapeId,
 }) => {
   const [camera, setCamera] = useState<ViewportCamera>({
     position: { x: 0, y: 0, z: 5 },
     rotation: { x: 0, y: 0 },
     zoom: 1,
   });
+  
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggedShapeId, setDraggedShapeId] = useState<string | null>(null);
+  const [showGrid, setShowGrid] = useState(true);
+  
+  // Animation values
+  const cameraShake = useRef(new Animated.Value(0)).current;
+  const gridOpacity = useRef(new Animated.Value(0.3)).current;
 
-  const panResponder = useRef(
+  const animateCamera = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(cameraShake, {
+        toValue: 2,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cameraShake, {
+        toValue: 0,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [cameraShake]);
+
+  const viewportPanResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only handle viewport rotation if not dragging a shape
+        return !draggedShapeId && Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+      },
       onPanResponderGrant: () => {
+        setIsDragging(true);
+        Vibration.vibrate(25);
         console.log('Viewport pan started');
       },
       onPanResponderMove: (evt, gestureState) => {
+        if (draggedShapeId) return;
+        
         const { dx, dy } = gestureState;
+        const sensitivity = 0.5;
+        
         setCamera(prev => ({
           ...prev,
           rotation: {
-            x: Math.max(-90, Math.min(90, prev.rotation.x + dy * 0.5)),
-            y: prev.rotation.y + dx * 0.5,
+            x: Math.max(-90, Math.min(90, prev.rotation.x + dy * sensitivity)),
+            y: prev.rotation.y + dx * sensitivity,
           },
         }));
       },
       onPanResponderRelease: () => {
+        setIsDragging(false);
+        setDraggedShapeId(null);
         console.log('Viewport pan ended');
       },
     })
   ).current;
 
-  const renderShape = (shape: Shape, index: number) => {
-    // Simple 2D projection of 3D shapes for mobile display
-    const projectedX = shape.position.x * 50 + SCREEN_WIDTH / 2;
-    const projectedY = -shape.position.y * 50 + 200;
+  const createShapePanResponder = useCallback((shape: Shape) => {
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return shape.selected && (Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3);
+      },
+      onPanResponderGrant: () => {
+        setDraggedShapeId(shape.id);
+        Vibration.vibrate(50);
+        console.log('Shape drag started:', shape.id);
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        if (!shape.selected) return;
+        
+        const { dx, dy } = gestureState;
+        const sensitivity = 0.02;
+        
+        // Update shape position based on drag
+        const newPosition = {
+          x: shape.position.x + dx * sensitivity,
+          y: shape.position.y - dy * sensitivity, // Invert Y for natural feel
+          z: shape.position.z,
+        };
+        
+        // This would need to be passed from parent
+        console.log('Shape position update:', shape.id, newPosition);
+      },
+      onPanResponderRelease: () => {
+        setDraggedShapeId(null);
+        Vibration.vibrate(25);
+        console.log('Shape drag ended:', shape.id);
+      },
+    });
+  }, []);
+
+  const project3DTo2D = useCallback((position: { x: number; y: number; z: number }) => {
+    // Enhanced 3D to 2D projection with camera rotation
+    const { x, y, z } = position;
+    const { rotation, zoom } = camera;
+    
+    // Apply camera rotation (simplified)
+    const cosX = Math.cos(rotation.x * Math.PI / 180);
+    const sinX = Math.sin(rotation.x * Math.PI / 180);
+    const cosY = Math.cos(rotation.y * Math.PI / 180);
+    const sinY = Math.sin(rotation.y * Math.PI / 180);
+    
+    // Rotate around Y axis first, then X axis
+    const rotatedX = x * cosY - z * sinY;
+    const rotatedZ = x * sinY + z * cosY;
+    const rotatedY = y * cosX - rotatedZ * sinX;
+    const finalZ = y * sinX + rotatedZ * cosX;
+    
+    // Perspective projection
+    const distance = 5 + finalZ;
+    const scale = zoom * 100 / Math.max(0.1, distance);
+    
+    return {
+      x: rotatedX * scale + SCREEN_WIDTH / 2,
+      y: -rotatedY * scale + SCREEN_HEIGHT / 3,
+      scale: Math.max(0.1, scale / 100),
+      depth: finalZ,
+    };
+  }, [camera]);
+
+  const renderShape = useCallback((shape: Shape, index: number) => {
+    const projected = project3DTo2D(shape.position);
+    const shapePanResponder = createShapePanResponder(shape);
+    
+    // Calculate shape size with scale and perspective
+    const baseSize = 50;
+    const scaledSize = baseSize * projected.scale;
+    const finalWidth = scaledSize * shape.scale.x;
+    const finalHeight = scaledSize * shape.scale.y;
     
     const getShapeStyle = () => {
       const baseStyle = {
         position: 'absolute' as const,
-        left: projectedX - 25,
-        top: projectedY - 25,
-        width: 50 * shape.scale.x,
-        height: 50 * shape.scale.y,
+        left: projected.x - finalWidth / 2,
+        top: projected.y - finalHeight / 2,
+        width: finalWidth,
+        height: finalHeight,
         backgroundColor: shape.color,
         borderWidth: shape.selected ? 3 : 1,
         borderColor: shape.selected ? colors.accent : colors.border,
+        opacity: Math.max(0.3, 1 - Math.abs(projected.depth) * 0.1),
+        transform: [
+          { rotateX: `${shape.rotation.x}deg` },
+          { rotateY: `${shape.rotation.y}deg` },
+          { rotateZ: `${shape.rotation.z}deg` },
+        ],
+        zIndex: Math.round(1000 - projected.depth * 10),
       };
 
       switch (shape.type) {
         case 'sphere':
-          return { ...baseStyle, borderRadius: 25 * shape.scale.x };
+          return { 
+            ...baseStyle, 
+            borderRadius: finalWidth / 2,
+          };
         case 'cylinder':
-          return { ...baseStyle, borderRadius: 8 };
+          return { 
+            ...baseStyle, 
+            borderRadius: 8,
+          };
         case 'cone':
           return { 
             ...baseStyle, 
-            borderRadius: 25 * shape.scale.x,
-            transform: [{ rotate: '45deg' }],
+            borderRadius: finalWidth / 2,
+            borderBottomLeftRadius: 0,
+            borderBottomRightRadius: 0,
+          };
+        case 'plane':
+          return {
+            ...baseStyle,
+            borderRadius: 4,
+            height: finalHeight * 0.1, // Make planes thin
           };
         default: // cube
-          return baseStyle;
+          return {
+            ...baseStyle,
+            borderRadius: 4,
+          };
       }
     };
 
     return (
-      <TouchableOpacity
+      <Animated.View
         key={shape.id}
-        style={getShapeStyle()}
-        onPress={() => onShapeSelect(shape.id)}
-        activeOpacity={0.8}
+        style={[
+          getShapeStyle(),
+          draggedShapeId === shape.id && {
+            transform: [
+              ...getShapeStyle().transform,
+              { scale: 1.1 },
+            ],
+          },
+        ]}
+        {...shapePanResponder.panHandlers}
       >
-        {shape.selected && (
-          <View style={styles.selectionIndicator}>
-            <Text style={styles.selectionText}>{shape.type}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.shapeTouch}
+          onPress={() => {
+            onShapeSelect(shape.id);
+            Vibration.vibrate(25);
+            animateCamera();
+          }}
+          activeOpacity={0.8}
+        >
+          {shape.selected && (
+            <View style={styles.selectionIndicator}>
+              <Text style={styles.selectionText}>{shape.type}</Text>
+              <View style={styles.selectionCorners}>
+                <View style={[styles.corner, styles.cornerTL]} />
+                <View style={[styles.corner, styles.cornerTR]} />
+                <View style={[styles.corner, styles.cornerBL]} />
+                <View style={[styles.corner, styles.cornerBR]} />
+              </View>
+            </View>
+          )}
+        </TouchableOpacity>
+      </Animated.View>
     );
-  };
+  }, [project3DTo2D, createShapePanResponder, onShapeSelect, draggedShapeId, animateCamera]);
+
+  const resetCamera = useCallback(() => {
+    setCamera({
+      position: { x: 0, y: 0, z: 5 },
+      rotation: { x: 0, y: 0 },
+      zoom: 1,
+    });
+    animateCamera();
+    Vibration.vibrate(50);
+  }, [animateCamera]);
+
+  const toggleGrid = useCallback(() => {
+    setShowGrid(!showGrid);
+    Animated.timing(gridOpacity, {
+      toValue: showGrid ? 0 : 0.3,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    Vibration.vibrate(25);
+  }, [showGrid, gridOpacity]);
+
+  // Sort shapes by depth for proper rendering order
+  const sortedShapes = [...shapes].sort((a, b) => {
+    const aProjected = project3DTo2D(a.position);
+    const bProjected = project3DTo2D(b.position);
+    return bProjected.depth - aProjected.depth;
+  });
 
   return (
-    <View style={styles.container}>
-      <View style={styles.viewport} {...panResponder.panHandlers}>
-        {/* Grid background */}
-        <View style={styles.grid}>
-          {Array.from({ length: 10 }).map((_, i) => (
-            <View key={`h-${i}`} style={[styles.gridLine, { top: i * 40 }]} />
-          ))}
-          {Array.from({ length: 10 }).map((_, i) => (
-            <View key={`v-${i}`} style={[styles.gridLineVertical, { left: i * 40 }]} />
-          ))}
-        </View>
+    <Animated.View 
+      style={[
+        styles.container,
+        {
+          transform: [
+            { translateX: cameraShake },
+            { translateY: cameraShake },
+          ],
+        },
+      ]}
+    >
+      <View style={styles.viewport} {...viewportPanResponder.panHandlers}>
+        {/* Enhanced Grid */}
+        {showGrid && (
+          <Animated.View style={[styles.grid, { opacity: gridOpacity }]}>
+            {/* Major grid lines */}
+            {Array.from({ length: 21 }).map((_, i) => (
+              <View key={`major-h-${i}`} style={[
+                styles.gridLineMajor, 
+                { top: i * 40, opacity: i % 5 === 0 ? 0.6 : 0.2 }
+              ]} />
+            ))}
+            {Array.from({ length: 21 }).map((_, i) => (
+              <View key={`major-v-${i}`} style={[
+                styles.gridLineVerticalMajor, 
+                { left: i * 40, opacity: i % 5 === 0 ? 0.6 : 0.2 }
+              ]} />
+            ))}
+          </Animated.View>
+        )}
 
-        {/* Center origin indicator */}
+        {/* Enhanced Origin Indicator */}
         <View style={styles.origin}>
           <View style={styles.originX} />
           <View style={styles.originY} />
+          <View style={styles.originZ} />
+          <Text style={styles.originLabel}>0,0,0</Text>
         </View>
 
-        {/* Render shapes */}
-        {shapes.map(renderShape)}
+        {/* Render shapes with depth sorting */}
+        {sortedShapes.map(renderShape)}
 
-        {/* Viewport info */}
+        {/* Enhanced Viewport Info */}
         <View style={styles.viewportInfo}>
           <Text style={styles.infoText}>
             Camera: X:{camera.rotation.x.toFixed(1)}° Y:{camera.rotation.y.toFixed(1)}°
           </Text>
           <Text style={styles.infoText}>
-            Shapes: {shapes.length}
+            Zoom: {camera.zoom.toFixed(2)}x | Shapes: {shapes.length}
+          </Text>
+          <Text style={styles.infoText}>
+            {isDragging ? 'Dragging...' : draggedShapeId ? 'Moving Shape' : 'Ready'}
           </Text>
         </View>
 
@@ -146,36 +350,55 @@ const Viewport3D: React.FC<Viewport3DProps> = ({
             <Text style={styles.instructionsText}>
               • Tap shapes to select them
             </Text>
+            <Text style={styles.instructionsText}>
+              • Drag selected shapes to move them
+            </Text>
           </View>
         )}
       </View>
 
-      {/* Camera controls */}
+      {/* Enhanced Camera Controls */}
       <View style={styles.cameraControls}>
         <TouchableOpacity
           style={styles.controlButton}
-          onPress={() => setCamera(prev => ({ ...prev, zoom: Math.min(3, prev.zoom + 0.2) }))}
+          onPress={() => {
+            setCamera(prev => ({ ...prev, zoom: Math.min(3, prev.zoom + 0.2) }));
+            Vibration.vibrate(25);
+          }}
         >
-          <Text style={styles.controlButtonText}>+</Text>
+          <Icon name="add" size={20} color={colors.text} />
         </TouchableOpacity>
+        
         <TouchableOpacity
           style={styles.controlButton}
-          onPress={() => setCamera({
-            position: { x: 0, y: 0, z: 5 },
-            rotation: { x: 0, y: 0 },
-            zoom: 1,
-          })}
+          onPress={resetCamera}
         >
-          <Text style={styles.controlButtonText}>⌂</Text>
+          <Icon name="home" size={20} color={colors.text} />
         </TouchableOpacity>
+        
         <TouchableOpacity
           style={styles.controlButton}
-          onPress={() => setCamera(prev => ({ ...prev, zoom: Math.max(0.5, prev.zoom - 0.2) }))}
+          onPress={() => {
+            setCamera(prev => ({ ...prev, zoom: Math.max(0.3, prev.zoom - 0.2) }));
+            Vibration.vibrate(25);
+          }}
         >
-          <Text style={styles.controlButtonText}>-</Text>
+          <Icon name="remove" size={20} color={colors.text} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.controlButton, !showGrid && styles.controlButtonInactive]}
+          onPress={toggleGrid}
+        >
+          <Icon name="grid" size={20} color={showGrid ? colors.text : colors.textSecondary} />
         </TouchableOpacity>
       </View>
-    </View>
+
+      {/* Zoom Indicator */}
+      <View style={styles.zoomIndicator}>
+        <Text style={styles.zoomText}>{(camera.zoom * 100).toFixed(0)}%</Text>
+      </View>
+    </Animated.View>
   );
 };
 
@@ -196,48 +419,67 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  gridLine: {
+  gridLineMajor: {
     position: 'absolute',
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: colors.grey,
-    opacity: 0.3,
+    backgroundColor: colors.primary,
   },
-  gridLineVertical: {
+  gridLineVerticalMajor: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     width: 1,
-    backgroundColor: colors.grey,
-    opacity: 0.3,
+    backgroundColor: colors.primary,
   },
   origin: {
     position: 'absolute',
-    top: 200,
+    top: SCREEN_HEIGHT / 3,
     left: SCREEN_WIDTH / 2,
-    width: 20,
-    height: 20,
+    width: 30,
+    height: 30,
   },
   originX: {
     position: 'absolute',
-    top: 9,
+    top: 14,
     left: 0,
-    width: 20,
+    width: 30,
     height: 2,
     backgroundColor: colors.error,
   },
   originY: {
     position: 'absolute',
     top: 0,
-    left: 9,
+    left: 14,
     width: 2,
-    height: 20,
+    height: 30,
     backgroundColor: colors.success,
+  },
+  originZ: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    width: 6,
+    height: 6,
+    backgroundColor: colors.primary,
+    borderRadius: 3,
+  },
+  originLabel: {
+    position: 'absolute',
+    top: 32,
+    left: -10,
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontFamily: 'monospace',
+  },
+  shapeTouch: {
+    flex: 1,
+    position: 'relative',
   },
   selectionIndicator: {
     position: 'absolute',
-    top: -25,
+    top: -30,
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -247,28 +489,70 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: '600',
     backgroundColor: colors.backgroundAlt,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  selectionCorners: {
+    position: 'absolute',
+    top: 30,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  corner: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    borderColor: colors.accent,
+    borderWidth: 2,
+  },
+  cornerTL: {
+    top: -4,
+    left: -4,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
+  },
+  cornerTR: {
+    top: -4,
+    right: -4,
+    borderLeftWidth: 0,
+    borderBottomWidth: 0,
+  },
+  cornerBL: {
+    bottom: -4,
+    left: -4,
+    borderRightWidth: 0,
+    borderTopWidth: 0,
+  },
+  cornerBR: {
+    bottom: -4,
+    right: -4,
+    borderLeftWidth: 0,
+    borderTopWidth: 0,
   },
   viewportInfo: {
     position: 'absolute',
     top: 16,
     left: 16,
     backgroundColor: colors.backgroundAlt,
-    padding: 8,
+    padding: 12,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
+    ...commonStyles.shadow,
   },
   infoText: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
     fontFamily: 'monospace',
+    marginBottom: 2,
   },
   instructionsOverlay: {
     position: 'absolute',
-    top: '30%',
+    top: '25%',
     left: 20,
     right: 20,
     alignItems: 'center',
@@ -300,20 +584,35 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   controlButton: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     backgroundColor: colors.backgroundAlt,
-    borderRadius: 22,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.border,
     ...commonStyles.shadow,
   },
-  controlButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
+  controlButtonInactive: {
+    backgroundColor: colors.background,
+    opacity: 0.6,
+  },
+  zoomIndicator: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    backgroundColor: colors.backgroundAlt,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  zoomText: {
+    fontSize: 12,
     color: colors.text,
+    fontWeight: '600',
   },
 });
 
