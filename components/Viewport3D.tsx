@@ -136,7 +136,7 @@ const Viewport3D: React.FC<Viewport3DProps> = ({
         {/* Instructions overlay */}
         {shapes.length === 0 && (
           <View style={styles.instructionsOverlay}>
-            <Text style={styles.instructionsTitle}>Welcome to Roblox Studio Mobile</Text>
+            <Text style={styles.instructionsTitle}>Welcome To Grantic Studion</Text>
             <Text style={styles.instructionsText}>
               • Tap the toolbox below to add shapes
             </Text>
