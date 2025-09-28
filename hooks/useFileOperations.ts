@@ -33,7 +33,7 @@ export const useFileOperations = () => {
 
       const jsonString = JSON.stringify(projectData, null, 2);
       const fileName = `${projectData.name}.grantic`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
 
       await FileSystem.writeAsStringAsync(fileUri, jsonString);
       console.log('Project saved to:', fileUri);
@@ -118,7 +118,7 @@ export const useFileOperations = () => {
 
       const jsonString = JSON.stringify(projectData, null, 2);
       const fileName = `${projectData.name}.grantic`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
 
       await FileSystem.writeAsStringAsync(fileUri, jsonString);
 

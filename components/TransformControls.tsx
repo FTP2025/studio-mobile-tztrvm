@@ -69,7 +69,7 @@ const TransformControls: React.FC<TransformControlsProps> = ({
       scaleAnim.stopAnimation();
       scaleAnim.setValue(1);
     }
-  }, [isTransforming]);
+  }, [isTransforming, feedbackOpacity, scaleAnim]);
 
   if (!selectedShape) {
     return (
