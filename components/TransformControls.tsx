@@ -68,7 +68,7 @@ const TransformControls: React.FC<TransformControlsProps> = ({
     );
   }
 
-  const getStepSize = () => 0.1;
+  const getStepSize = () => 0.3;
   const getRotationStep = () => 15;
   const getScaleStep = () => 0.1;
 
