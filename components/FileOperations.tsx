@@ -29,96 +29,129 @@ const FileOperations: React.FC<FileOperationsProps> = ({
   const { saveProject, loadProject, exportProject, isSaving, isLoading } = useFileOperations();
 
   const handleSave = async () => {
-    if (shapes.length === 0) {
-      Alert.alert('No Shapes', 'Add some shapes to your project before saving.');
-      return;
-    }
+    try {
+      if (!shapes || shapes.length === 0) {
+        Alert.alert('No Shapes', 'Add some shapes to your project before saving.');
+        return;
+      }
 
-    const name = projectName.trim() || `GRANTIC_Project_${new Date().toISOString().split('T')[0]}`;
-    console.log('Saving project with name:', name);
+      const name = projectName.trim() || `GRANTIC_Project_${new Date().toISOString().split('T')[0]}`;
+      console.log('Saving project with name:', name);
 
-    const result = await saveProject(shapes, name);
-    
-    if (result.success) {
-      Alert.alert(
-        'Project Saved',
-        `Your project "${name}" has been saved successfully!`,
-        [{ text: 'OK', onPress: onClose }]
-      );
-      setProjectName('');
-    } else {
-      Alert.alert('Save Failed', result.error || 'Failed to save project');
+      const result = await saveProject(shapes, name);
+      
+      if (result.success) {
+        Alert.alert(
+          'Project Saved',
+          `Your project "${name}" has been saved successfully!`,
+          [{ text: 'OK', onPress: onClose }]
+        );
+        setProjectName('');
+      } else {
+        console.error('Save failed:', result.error);
+        Alert.alert('Save Failed', result.error || 'Failed to save project');
+      }
+    } catch (error) {
+      console.error('Save operation failed:', error);
+      Alert.alert('Save Failed', 'An unexpected error occurred while saving');
     }
   };
 
   const handleLoad = async () => {
-    console.log('Loading project...');
-    
-    const result = await loadProject();
-    
-    if (result.success && result.data) {
-      Alert.alert(
-        'Load Project',
-        `Load "${result.data.name}" with ${result.data.shapes.length} shapes? This will replace your current project.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Load',
-            onPress: () => {
-              onLoadProject(result.data!.shapes);
-              Alert.alert('Project Loaded', `"${result.data!.name}" loaded successfully!`);
-              onClose?.();
+    try {
+      console.log('Loading project...');
+      
+      const result = await loadProject();
+      
+      if (result.success && result.data) {
+        Alert.alert(
+          'Load Project',
+          `Load "${result.data.name}" with ${result.data.shapes.length} shapes? This will replace your current project.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Load',
+              onPress: () => {
+                try {
+                  onLoadProject(result.data!.shapes);
+                  Alert.alert('Project Loaded', `"${result.data!.name}" loaded successfully!`);
+                  onClose?.();
+                } catch (loadError) {
+                  console.error('Error during project load callback:', loadError);
+                  Alert.alert('Load Error', 'Failed to load project data');
+                }
+              },
             },
-          },
-        ]
-      );
-    } else {
-      Alert.alert('Load Failed', result.error || 'Failed to load project');
+          ]
+        );
+      } else {
+        console.error('Load failed:', result.error);
+        Alert.alert('Load Failed', result.error || 'Failed to load project');
+      }
+    } catch (error) {
+      console.error('Load operation failed:', error);
+      Alert.alert('Load Failed', 'An unexpected error occurred while loading');
     }
   };
 
   const handleExport = async () => {
-    if (shapes.length === 0) {
-      Alert.alert('No Shapes', 'Add some shapes to your project before exporting.');
-      return;
-    }
+    try {
+      if (!shapes || shapes.length === 0) {
+        Alert.alert('No Shapes', 'Add some shapes to your project before exporting.');
+        return;
+      }
 
-    const name = projectName.trim() || `GRANTIC_Export_${new Date().toISOString().split('T')[0]}`;
-    console.log('Exporting project with name:', name);
+      const name = projectName.trim() || `GRANTIC_Export_${new Date().toISOString().split('T')[0]}`;
+      console.log('Exporting project with name:', name);
 
-    const result = await exportProject(shapes, name);
-    
-    if (result.success) {
-      Alert.alert(
-        'Project Exported',
-        `Your project "${name}" has been exported successfully!`
-      );
-      setProjectName('');
-    } else {
-      Alert.alert('Export Failed', result.error || 'Failed to export project');
+      const result = await exportProject(shapes, name);
+      
+      if (result.success) {
+        Alert.alert(
+          'Project Exported',
+          `Your project "${name}" has been exported successfully!`
+        );
+        setProjectName('');
+      } else {
+        console.error('Export failed:', result.error);
+        Alert.alert('Export Failed', result.error || 'Failed to export project');
+      }
+    } catch (error) {
+      console.error('Export operation failed:', error);
+      Alert.alert('Export Failed', 'An unexpected error occurred while exporting');
     }
   };
 
   const handleNewProject = () => {
-    if (shapes.length > 0) {
-      Alert.alert(
-        'New Project',
-        'This will clear all current shapes. Are you sure?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'New Project',
-            style: 'destructive',
-            onPress: () => {
-              onLoadProject([]);
-              Alert.alert('New Project', 'Started a new project!');
-              onClose?.();
+    try {
+      if (shapes.length > 0) {
+        Alert.alert(
+          'New Project',
+          'This will clear all current shapes. Are you sure?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'New Project',
+              style: 'destructive',
+              onPress: () => {
+                try {
+                  onLoadProject([]);
+                  Alert.alert('New Project', 'Started a new project!');
+                  onClose?.();
+                } catch (newProjectError) {
+                  console.error('Error creating new project:', newProjectError);
+                  Alert.alert('Error', 'Failed to create new project');
+                }
+              },
             },
-          },
-        ]
-      );
-    } else {
-      Alert.alert('New Project', 'Already working on a new project!');
+          ]
+        );
+      } else {
+        Alert.alert('New Project', 'Already working on a new project!');
+      }
+    } catch (error) {
+      console.error('New project operation failed:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
     }
   };
 

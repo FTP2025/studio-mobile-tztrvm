@@ -21,6 +21,11 @@ export const useFileOperations = () => {
       setIsSaving(true);
       console.log('Starting project save...');
 
+      if (!shapes || !Array.isArray(shapes)) {
+        console.error('Invalid shapes data provided');
+        return { success: false, error: 'Invalid shapes data' };
+      }
+
       const projectData: ProjectData = {
         version: '1.0.0',
         name: projectName || `GRANTIC_Project_${new Date().toISOString().split('T')[0]}`,
@@ -52,7 +57,8 @@ export const useFileOperations = () => {
       return { success: true, fileName, fileUri };
     } catch (error) {
       console.error('Error saving project:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      return { success: false, error: errorMessage };
     } finally {
       setIsSaving(false);
     }
@@ -73,6 +79,11 @@ export const useFileOperations = () => {
         return { success: false, error: 'File selection cancelled' };
       }
 
+      if (!result.assets || result.assets.length === 0) {
+        console.error('No file selected');
+        return { success: false, error: 'No file selected' };
+      }
+
       const file = result.assets[0];
       console.log('Selected file:', file.name, file.uri);
 
@@ -82,21 +93,34 @@ export const useFileOperations = () => {
       }
 
       const fileContent = await FileSystem.readAsStringAsync(file.uri);
-      const projectData: ProjectData = JSON.parse(fileContent);
+      
+      if (!fileContent || fileContent.trim() === '') {
+        return { success: false, error: 'File is empty or corrupted' };
+      }
+
+      let projectData: ProjectData;
+      try {
+        projectData = JSON.parse(fileContent);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        return { success: false, error: 'Invalid JSON format in file' };
+      }
 
       // Validate the project data structure
-      if (!projectData.shapes || !Array.isArray(projectData.shapes)) {
+      if (!projectData || typeof projectData !== 'object') {
         return { success: false, error: 'Invalid project file format' };
       }
 
-      console.log('Project loaded successfully:', projectData.name);
+      if (!projectData.shapes || !Array.isArray(projectData.shapes)) {
+        return { success: false, error: 'Invalid project file format - missing shapes array' };
+      }
+
+      console.log('Project loaded successfully:', projectData.name || 'Unnamed Project');
       return { success: true, data: projectData };
     } catch (error) {
       console.error('Error loading project:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to load project file' 
-      };
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load project file';
+      return { success: false, error: errorMessage };
     } finally {
       setIsLoading(false);
     }
@@ -105,6 +129,11 @@ export const useFileOperations = () => {
   const exportProject = useCallback(async (shapes: Shape[], projectName?: string) => {
     try {
       console.log('Starting project export...');
+
+      if (!shapes || !Array.isArray(shapes)) {
+        console.error('Invalid shapes data provided for export');
+        return { success: false, error: 'Invalid shapes data' };
+      }
 
       const projectData: ProjectData = {
         version: '1.0.0',
@@ -135,7 +164,8 @@ export const useFileOperations = () => {
       }
     } catch (error) {
       console.error('Error exporting project:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Export failed' };
+      const errorMessage = error instanceof Error ? error.message : 'Export failed';
+      return { success: false, error: errorMessage };
     }
   }, []);
 
@@ -144,7 +174,7 @@ export const useFileOperations = () => {
       setIsSaving(true);
       console.log('Starting save as file...');
 
-      if (shapes.length === 0) {
+      if (!shapes || !Array.isArray(shapes) || shapes.length === 0) {
         return { success: false, error: 'No shapes to save' };
       }
 
@@ -182,7 +212,8 @@ export const useFileOperations = () => {
       return { success: true, fileName: finalFileName, fileUri };
     } catch (error) {
       console.error('Error in save as file:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Failed to save file' };
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save file';
+      return { success: false, error: errorMessage };
     } finally {
       setIsSaving(false);
     }

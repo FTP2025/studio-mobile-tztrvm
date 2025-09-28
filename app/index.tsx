@@ -39,22 +39,41 @@ const GRANTIC: React.FC = () => {
   const selectedShape = getSelectedShape();
 
   const handleShapeSelect = (id: string) => {
-    selectShape(id);
-    console.log('Selected shape:', id);
+    try {
+      selectShape(id);
+      console.log('Selected shape:', id);
+    } catch (error) {
+      console.error('Error selecting shape:', error);
+    }
   };
 
   const handleShapeDeselect = () => {
-    clearSelection();
-    console.log('Deselected all shapes');
+    try {
+      clearSelection();
+      console.log('Deselected all shapes');
+    } catch (error) {
+      console.error('Error deselecting shapes:', error);
+    }
   };
 
   const handleAddShape = (type: any) => {
-    addShape(type);
-    closeAllBottomSheets();
+    try {
+      addShape(type);
+      closeAllBottomSheets();
+      console.log('Added shape:', type);
+    } catch (error) {
+      console.error('Error adding shape:', error);
+      Alert.alert('Error', 'Failed to add shape');
+    }
   };
 
   const handleUpdateShape = (id: string, updates: any) => {
-    updateShape(id, updates);
+    try {
+      updateShape(id, updates);
+      console.log('Updated shape:', id, updates);
+    } catch (error) {
+      console.error('Error updating shape:', error);
+    }
   };
 
   const handleDeleteShape = (id: string) => {
@@ -67,8 +86,14 @@ const GRANTIC: React.FC = () => {
           text: 'Delete', 
           style: 'destructive',
           onPress: () => {
-            deleteShape(id);
-            closeAllBottomSheets();
+            try {
+              deleteShape(id);
+              closeAllBottomSheets();
+              console.log('Deleted shape:', id);
+            } catch (error) {
+              console.error('Error deleting shape:', error);
+              Alert.alert('Error', 'Failed to delete shape');
+            }
           }
         },
       ]
@@ -76,23 +101,42 @@ const GRANTIC: React.FC = () => {
   };
 
   const handleDuplicateShape = () => {
-    if (selectedShapeId) {
-      duplicateShape(selectedShapeId);
+    try {
+      if (selectedShapeId) {
+        duplicateShape(selectedShapeId);
+        console.log('Duplicated shape:', selectedShapeId);
+      }
+    } catch (error) {
+      console.error('Error duplicating shape:', error);
+      Alert.alert('Error', 'Failed to duplicate shape');
     }
   };
 
   const handleLoadProject = (projectData: any) => {
-    if (projectData.shapes) {
-      loadShapes(projectData.shapes);
+    try {
+      if (projectData.shapes) {
+        loadShapes(projectData.shapes);
+        console.log('Loaded project with shapes:', projectData.shapes.length);
+      } else if (Array.isArray(projectData)) {
+        loadShapes(projectData);
+        console.log('Loaded project with shapes:', projectData.length);
+      }
+      closeAllBottomSheets();
+    } catch (error) {
+      console.error('Error loading project:', error);
+      Alert.alert('Error', 'Failed to load project');
     }
-    closeAllBottomSheets();
   };
 
   const closeAllBottomSheets = () => {
-    setShowMainMenu(false);
-    setShowToolbox(false);
-    setShowTransformControls(false);
-    setShowFileOperations(false);
+    try {
+      setShowMainMenu(false);
+      setShowToolbox(false);
+      setShowTransformControls(false);
+      setShowFileOperations(false);
+    } catch (error) {
+      console.error('Error closing bottom sheets:', error);
+    }
   };
 
   const handleNewProject = () => {
@@ -104,8 +148,14 @@ const GRANTIC: React.FC = () => {
         {
           text: 'Continue',
           onPress: () => {
-            clearAllShapes();
-            closeAllBottomSheets();
+            try {
+              clearAllShapes();
+              closeAllBottomSheets();
+              console.log('Started new project');
+            } catch (error) {
+              console.error('Error creating new project:', error);
+              Alert.alert('Error', 'Failed to create new project');
+            }
           },
         },
       ]
@@ -114,39 +164,71 @@ const GRANTIC: React.FC = () => {
 
   const handleSaveProject = async () => {
     try {
+      console.log('Starting save project...');
       const projectData = getProjectData();
-      await saveProject(projectData);
+      const result = await saveProject(projectData.shapes);
+      
+      if (result.success) {
+        console.log('Project saved successfully');
+        Alert.alert('Success', 'Project saved successfully!');
+      } else {
+        console.error('Save failed:', result.error);
+        Alert.alert('Save Failed', result.error || 'Could not save the project.');
+      }
       closeAllBottomSheets();
     } catch (error) {
-      console.error('Save failed:', error);
+      console.error('Save failed with exception:', error);
       Alert.alert('Save Failed', 'Could not save the project.');
+      closeAllBottomSheets();
     }
   };
 
   const handleLoadProjectFromMenu = () => {
-    setShowFileOperations(true);
-    setShowMainMenu(false);
+    try {
+      setShowFileOperations(true);
+      setShowMainMenu(false);
+    } catch (error) {
+      console.error('Error opening file operations:', error);
+    }
   };
 
   const handleExportProject = async () => {
     try {
+      console.log('Starting export project...');
       const projectData = getProjectData();
-      await exportProject(projectData);
+      const result = await exportProject(projectData.shapes);
+      
+      if (result.success) {
+        console.log('Project exported successfully');
+        Alert.alert('Success', 'Project exported successfully!');
+      } else {
+        console.error('Export failed:', result.error);
+        Alert.alert('Export Failed', result.error || 'Could not export the project.');
+      }
       closeAllBottomSheets();
     } catch (error) {
-      console.error('Export failed:', error);
+      console.error('Export failed with exception:', error);
       Alert.alert('Export Failed', 'Could not export the project.');
+      closeAllBottomSheets();
     }
   };
 
   const handleOpenToolbox = () => {
-    setShowToolbox(true);
-    setShowMainMenu(false);
+    try {
+      setShowToolbox(true);
+      setShowMainMenu(false);
+    } catch (error) {
+      console.error('Error opening toolbox:', error);
+    }
   };
 
   const handleOpenTransformControls = () => {
-    setShowTransformControls(true);
-    setShowMainMenu(false);
+    try {
+      setShowTransformControls(true);
+      setShowMainMenu(false);
+    } catch (error) {
+      console.error('Error opening transform controls:', error);
+    }
   };
 
   return (
