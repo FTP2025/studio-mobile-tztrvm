@@ -13,9 +13,10 @@ export const useShapes = () => {
       position: { 
         x: Math.random() * 10 - 5, // Random position between -5 and 5
         y: Math.random() * 10 - 5, 
+        z: Math.random() * 10 - 5,
       },
-      rotation: 0,
-      scale: { x: 1, y: 1 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
       color: '#0066FF',
       selected: false,
     };
@@ -72,6 +73,7 @@ export const useShapes = () => {
       position: {
         x: shapeToDuplicate.position.x + 2,
         y: shapeToDuplicate.position.y + 2,
+        z: shapeToDuplicate.position.z,
       },
       selected: false,
     };
@@ -85,34 +87,40 @@ export const useShapes = () => {
     console.log('Duplicated shape:', newShape);
   }, [shapes]);
 
-  const moveShape = useCallback((id: string, delta: { x: number; y: number }) => {
+  const moveShape = useCallback((id: string, delta: { x: number; y: number; z: number }) => {
     setShapes(prev => prev.map(shape => 
       shape.id === id ? {
         ...shape,
         position: {
           x: shape.position.x + delta.x,
           y: shape.position.y + delta.y,
+          z: shape.position.z + delta.z,
         }
       } : shape
     ));
   }, []);
 
-  const rotateShape = useCallback((id: string, delta: number) => {
+  const rotateShape = useCallback((id: string, delta: { x: number; y: number; z: number }) => {
     setShapes(prev => prev.map(shape => 
       shape.id === id ? {
         ...shape,
-        rotation: (shape.rotation + delta) % 360,
+        rotation: {
+          x: (shape.rotation.x + delta.x) % 360,
+          y: (shape.rotation.y + delta.y) % 360,
+          z: (shape.rotation.z + delta.z) % 360,
+        }
       } : shape
     ));
   }, []);
 
-  const scaleShape = useCallback((id: string, delta: { x: number; y: number }) => {
+  const scaleShape = useCallback((id: string, delta: { x: number; y: number; z: number }) => {
     setShapes(prev => prev.map(shape => 
       shape.id === id ? {
         ...shape,
         scale: {
           x: Math.max(0.01, shape.scale.x + delta.x),
           y: Math.max(0.01, shape.scale.y + delta.y),
+          z: Math.max(0.01, shape.scale.z + delta.z),
         }
       } : shape
     ));
@@ -120,9 +128,9 @@ export const useShapes = () => {
 
   const resetShapeTransform = useCallback((id: string) => {
     updateShape(id, {
-      position: { x: 0, y: 0 },
-      rotation: 0,
-      scale: { x: 1, y: 1 },
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
     });
   }, [updateShape]);
 
@@ -136,6 +144,7 @@ export const useShapes = () => {
       position: {
         x: snapValue(shape.position.x),
         y: snapValue(shape.position.y),
+        z: snapValue(shape.position.z),
       }
     });
   }, [shapes, updateShape]);

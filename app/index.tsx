@@ -4,9 +4,8 @@ import { View, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '../styles/commonStyles';
 import { useShapes } from '../hooks/useShapes';
-import { useCharacters } from '../hooks/useCharacters';
 import { useFileOperations } from '../hooks/useFileOperations';
-import Viewport2D from '../components/Viewport2D';
+import Viewport3D from '../components/Viewport3D';
 import Toolbox from '../components/Toolbox';
 import TransformControls from '../components/TransformControls';
 import FileOperations from '../components/FileOperations';
@@ -22,27 +21,13 @@ const GRANTIC: React.FC = () => {
     selectShape,
     updateShape,
     deleteShape,
-    clearSelection: clearShapeSelection,
+    clearSelection,
     getSelectedShape,
     duplicateShape,
     loadShapes,
     clearAllShapes,
     getProjectData,
   } = useShapes();
-
-  const {
-    characters,
-    selectedCharacterId,
-    spawnCharacter,
-    selectCharacter,
-    updateCharacter,
-    deleteCharacter,
-    clearSelection: clearCharacterSelection,
-    getSelectedCharacter,
-    duplicateCharacter,
-    loadCharacters,
-    clearAllCharacters,
-  } = useCharacters();
 
   const { saveProject, loadProject, exportProject } = useFileOperations();
 
@@ -52,25 +37,15 @@ const GRANTIC: React.FC = () => {
   const [showFileOperations, setShowFileOperations] = useState(false);
 
   const selectedShape = getSelectedShape();
-  const selectedCharacter = getSelectedCharacter();
-  const selectedEntityType = selectedShape ? 'shape' : selectedCharacter ? 'character' : null;
 
   const handleShapeSelect = (id: string) => {
     selectShape(id);
-    clearCharacterSelection();
     console.log('Selected shape:', id);
   };
 
-  const handleCharacterSelect = (id: string) => {
-    selectCharacter(id);
-    clearShapeSelection();
-    console.log('Selected character:', id);
-  };
-
-  const handleDeselect = () => {
-    clearShapeSelection();
-    clearCharacterSelection();
-    console.log('Deselected all entities');
+  const handleShapeDeselect = () => {
+    clearSelection();
+    console.log('Deselected all shapes');
   };
 
   const handleAddShape = (type: any) => {
@@ -78,17 +53,8 @@ const GRANTIC: React.FC = () => {
     closeAllBottomSheets();
   };
 
-  const handleSpawnCharacter = (type: any) => {
-    spawnCharacter(type);
-    closeAllBottomSheets();
-  };
-
   const handleUpdateShape = (id: string, updates: any) => {
     updateShape(id, updates);
-  };
-
-  const handleUpdateCharacter = (id: string, updates: any) => {
-    updateCharacter(id, updates);
   };
 
   const handleDeleteShape = (id: string) => {
@@ -109,42 +75,15 @@ const GRANTIC: React.FC = () => {
     );
   };
 
-  const handleDeleteCharacter = (id: string) => {
-    Alert.alert(
-      'Delete Character',
-      'Are you sure you want to delete this character?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: () => {
-            deleteCharacter(id);
-            closeAllBottomSheets();
-          }
-        },
-      ]
-    );
-  };
-
   const handleDuplicateShape = () => {
     if (selectedShapeId) {
       duplicateShape(selectedShapeId);
     }
   };
 
-  const handleDuplicateCharacter = () => {
-    if (selectedCharacterId) {
-      duplicateCharacter(selectedCharacterId);
-    }
-  };
-
   const handleLoadProject = (projectData: any) => {
     if (projectData.shapes) {
       loadShapes(projectData.shapes);
-    }
-    if (projectData.characters) {
-      loadCharacters(projectData.characters);
     }
     closeAllBottomSheets();
   };
@@ -159,14 +98,13 @@ const GRANTIC: React.FC = () => {
   const handleNewProject = () => {
     Alert.alert(
       'New Project',
-      'This will clear all shapes and characters. Continue?',
+      'This will clear all shapes. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Continue',
           onPress: () => {
             clearAllShapes();
-            clearAllCharacters();
             closeAllBottomSheets();
           },
         },
@@ -176,11 +114,7 @@ const GRANTIC: React.FC = () => {
 
   const handleSaveProject = async () => {
     try {
-      const projectData = {
-        ...getProjectData(),
-        characters: characters.map(char => ({ ...char, selected: false })),
-        characterCount: characters.length,
-      };
+      const projectData = getProjectData();
       await saveProject(projectData);
       closeAllBottomSheets();
     } catch (error) {
@@ -196,11 +130,7 @@ const GRANTIC: React.FC = () => {
 
   const handleExportProject = async () => {
     try {
-      const projectData = {
-        ...getProjectData(),
-        characters: characters.map(char => ({ ...char, selected: false })),
-        characterCount: characters.length,
-      };
+      const projectData = getProjectData();
       await exportProject(projectData);
       closeAllBottomSheets();
     } catch (error) {
@@ -219,20 +149,14 @@ const GRANTIC: React.FC = () => {
     setShowMainMenu(false);
   };
 
-  const totalEntities = shapes.length + characters.length;
-  const hasSelectedEntity = !!(selectedShape || selectedCharacter);
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Viewport2D
+        <Viewport3D
           shapes={shapes}
-          characters={characters}
           onShapeSelect={handleShapeSelect}
-          onCharacterSelect={handleCharacterSelect}
-          onDeselect={handleDeselect}
-          selectedEntityId={selectedShapeId || selectedCharacterId}
-          selectedEntityType={selectedEntityType}
+          onShapeDeselect={handleShapeDeselect}
+          selectedShapeId={selectedShapeId}
         />
 
         {/* Main Menu Button */}
@@ -252,7 +176,7 @@ const GRANTIC: React.FC = () => {
             <Icon name="add-circle" size={24} color={colors.primary} />
           </TouchableOpacity>
 
-          {hasSelectedEntity && (
+          {selectedShape && (
             <TouchableOpacity
               style={styles.quickActionButton}
               onPress={() => setShowTransformControls(true)}
@@ -277,7 +201,7 @@ const GRANTIC: React.FC = () => {
           onOpenTransformControls={handleOpenTransformControls}
           onClose={() => setShowMainMenu(false)}
           shapesCount={shapes.length}
-          hasSelectedShape={hasSelectedEntity}
+          hasSelectedShape={!!selectedShape}
         />
       </SimpleBottomSheet>
 
@@ -285,10 +209,7 @@ const GRANTIC: React.FC = () => {
         isVisible={showToolbox}
         onClose={() => setShowToolbox(false)}
       >
-        <Toolbox
-          onAddShape={handleAddShape}
-          onSpawnCharacter={handleSpawnCharacter}
-        />
+        <Toolbox onAddShape={handleAddShape} />
       </SimpleBottomSheet>
 
       <SimpleBottomSheet
@@ -297,11 +218,8 @@ const GRANTIC: React.FC = () => {
       >
         <TransformControls
           selectedShape={selectedShape}
-          selectedCharacter={selectedCharacter}
           onUpdateShape={handleUpdateShape}
-          onUpdateCharacter={handleUpdateCharacter}
           onDeleteShape={handleDeleteShape}
-          onDeleteCharacter={handleDeleteCharacter}
         />
       </SimpleBottomSheet>
 
