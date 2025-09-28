@@ -12,19 +12,25 @@ import {
   Vibration,
 } from 'react-native';
 import { colors, commonStyles } from '../styles/commonStyles';
-import { Shape, TransformMode } from '../types';
+import { Shape, Character, TransformMode } from '../types';
 import Icon from './Icon';
 
 interface TransformControlsProps {
   selectedShape: Shape | null;
+  selectedCharacter: Character | null;
   onUpdateShape: (id: string, updates: Partial<Shape>) => void;
+  onUpdateCharacter: (id: string, updates: Partial<Character>) => void;
   onDeleteShape: (id: string) => void;
+  onDeleteCharacter: (id: string) => void;
 }
 
 const TransformControls: React.FC<TransformControlsProps> = ({
   selectedShape,
+  selectedCharacter,
   onUpdateShape,
+  onUpdateCharacter,
   onDeleteShape,
+  onDeleteCharacter,
 }) => {
   const [transformMode, setTransformMode] = useState<TransformMode>('move');
   const [precisionMode, setPrecisionMode] = useState(false);
@@ -32,6 +38,9 @@ const TransformControls: React.FC<TransformControlsProps> = ({
   
   const feedbackOpacity = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const selectedEntity = selectedShape || selectedCharacter;
+  const isCharacter = !!selectedCharacter;
 
   useEffect(() => {
     if (isTransforming) {
@@ -41,11 +50,10 @@ const TransformControls: React.FC<TransformControlsProps> = ({
           duration: 200,
           useNativeDriver: true,
         }),
-        Animated.spring(scaleAnim, {
+        Animated.timing(scaleAnim, {
           toValue: 1.05,
+          duration: 200,
           useNativeDriver: true,
-          tension: 100,
-          friction: 8,
         }),
       ]).start();
     } else {
@@ -55,167 +63,176 @@ const TransformControls: React.FC<TransformControlsProps> = ({
           duration: 200,
           useNativeDriver: true,
         }),
-        Animated.spring(scaleAnim, {
+        Animated.timing(scaleAnim, {
           toValue: 1,
+          duration: 200,
           useNativeDriver: true,
-          tension: 100,
-          friction: 8,
         }),
       ]).start();
     }
   }, [isTransforming, feedbackOpacity, scaleAnim]);
 
-  if (!selectedShape) {
+  if (!selectedEntity) {
     return (
       <View style={styles.container}>
-        <Text style={styles.noSelectionText}>Select a shape to transform</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>Transform Controls</Text>
+          <Text style={styles.subtitle}>Select an entity to transform</Text>
+        </View>
+        <View style={styles.emptyState}>
+          <Icon name="hand-left-outline" size={48} color={colors.textSecondary} />
+          <Text style={styles.emptyText}>Tap a shape or character to select it</Text>
+        </View>
       </View>
     );
   }
 
-  const getStepSize = (): number => {
-    return precisionMode ? 0.01 : 0.1;
-  };
+  const getStepSize = () => precisionMode ? 0.1 : 1;
+  const getRotationStep = () => precisionMode ? 1 : 15;
+  const getScaleStep = () => precisionMode ? 0.01 : 0.1;
 
-  const getRotationStep = (): number => {
-    return precisionMode ? 1 : 15;
-  };
-
-  const getScaleStep = (): number => {
-    return precisionMode ? 0.01 : 0.1;
-  };
-
-  const updatePosition = (axis: 'x' | 'y' | 'z', value: string | number) => {
+  const updatePosition = (axis: 'x' | 'y', value: string | number) => {
     const numValue = typeof value === 'string' ? parseFloat(value) || 0 : value;
-    onUpdateShape(selectedShape.id, {
+    const updates = {
       position: {
-        ...selectedShape.position,
+        ...selectedEntity.position,
         [axis]: numValue,
       },
-    });
+    };
+    
+    if (isCharacter) {
+      onUpdateCharacter(selectedEntity.id, updates);
+    } else {
+      onUpdateShape(selectedEntity.id, updates);
+    }
   };
 
-  const updateRotation = (axis: 'x' | 'y' | 'z', value: string | number) => {
+  const updateRotation = (value: string | number) => {
     const numValue = typeof value === 'string' ? parseFloat(value) || 0 : value;
-    onUpdateShape(selectedShape.id, {
-      rotation: {
-        ...selectedShape.rotation,
-        [axis]: numValue % 360,
-      },
-    });
+    const updates = { rotation: numValue % 360 };
+    
+    if (isCharacter) {
+      onUpdateCharacter(selectedEntity.id, updates);
+    } else {
+      onUpdateShape(selectedEntity.id, updates);
+    }
   };
 
-  const updateScale = (axis: 'x' | 'y' | 'z', value: string | number) => {
+  const updateScale = (axis: 'x' | 'y', value: string | number) => {
     const numValue = typeof value === 'string' ? parseFloat(value) || 0.01 : value;
-    onUpdateShape(selectedShape.id, {
+    const updates = {
       scale: {
-        ...selectedShape.scale,
+        ...selectedEntity.scale,
         [axis]: Math.max(0.01, numValue),
       },
-    });
+    };
+    
+    if (isCharacter) {
+      onUpdateCharacter(selectedEntity.id, updates);
+    } else {
+      onUpdateShape(selectedEntity.id, updates);
+    }
   };
 
   const updateColor = (color: string) => {
-    onUpdateShape(selectedShape.id, { color });
+    const updates = { color };
+    
+    if (isCharacter) {
+      onUpdateCharacter(selectedEntity.id, updates);
+    } else {
+      onUpdateShape(selectedEntity.id, updates);
+    }
   };
 
-  const handleQuickAdjust = (axis: 'x' | 'y' | 'z', direction: 1 | -1) => {
+  const handleQuickAdjust = (axis: 'x' | 'y', direction: 1 | -1) => {
     setIsTransforming(true);
-    Vibration.vibrate(10);
-
-    setTimeout(() => setIsTransforming(false), 200);
+    Vibration.vibrate(25);
+    
+    setTimeout(() => setIsTransforming(false), 300);
 
     switch (transformMode) {
       case 'move':
-        updatePosition(axis, selectedShape.position[axis] + (getStepSize() * direction));
+        updatePosition(axis, selectedEntity.position[axis] + direction * getStepSize());
         break;
       case 'rotate':
-        updateRotation(axis, selectedShape.rotation[axis] + (getRotationStep() * direction));
+        if (axis === 'x') {
+          updateRotation(selectedEntity.rotation + direction * getRotationStep());
+        }
         break;
       case 'scale':
-        updateScale(axis, selectedShape.scale[axis] + (getScaleStep() * direction));
+        updateScale(axis, selectedEntity.scale[axis] + direction * getScaleStep());
         break;
     }
   };
 
   const resetTransform = () => {
-    onUpdateShape(selectedShape.id, {
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      scale: { x: 1, y: 1, z: 1 },
-    });
-    console.log('Reset transform for shape:', selectedShape.id);
-  };
-
-  const duplicateShape = () => {
-    const newShape: Shape = {
-      ...selectedShape,
-      id: `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      position: {
-        x: selectedShape.position.x + 1,
-        y: selectedShape.position.y + 1,
-        z: selectedShape.position.z,
-      },
-      selected: false,
+    const updates = {
+      position: { x: 0, y: 0 },
+      rotation: 0,
+      scale: { x: 1, y: 1 },
     };
     
-    // This would need to be handled by the parent component
-    console.log('Duplicate shape requested:', newShape);
+    if (isCharacter) {
+      onUpdateCharacter(selectedEntity.id, updates);
+    } else {
+      onUpdateShape(selectedEntity.id, updates);
+    }
+    
+    Vibration.vibrate(50);
   };
 
-  const createSliderPanResponder = (axis: 'x' | 'y' | 'z') => {
+  const duplicateEntity = () => {
+    // This would need to be implemented in the parent component
+    console.log('Duplicate entity:', selectedEntity.id);
+    Vibration.vibrate(25);
+  };
+
+  const createSliderPanResponder = (axis: 'x' | 'y') => {
     return PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         setIsTransforming(true);
-        Vibration.vibrate(10);
+        Vibration.vibrate(25);
       },
-      onPanResponderMove: (_, gestureState) => {
-        const sensitivity = precisionMode ? 0.001 : 0.01;
+      onPanResponderMove: (evt, gestureState) => {
+        const sensitivity = precisionMode ? 0.01 : 0.05;
         const delta = gestureState.dx * sensitivity;
         
         switch (transformMode) {
           case 'move':
-            updatePosition(axis, selectedShape.position[axis] + delta);
-            break;
-          case 'rotate':
-            updateRotation(axis, selectedShape.rotation[axis] + (delta * 10));
+            updatePosition(axis, selectedEntity.position[axis] + delta);
             break;
           case 'scale':
-            updateScale(axis, selectedShape.scale[axis] + delta);
+            updateScale(axis, selectedEntity.scale[axis] + delta);
             break;
         }
       },
       onPanResponderRelease: () => {
         setIsTransforming(false);
+        Vibration.vibrate(25);
       },
     });
   };
 
-  const colors_list = [
-    '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
-    '#FFA500', '#800080', '#FFC0CB', '#A52A2A', '#808080', '#000000'
-  ];
+  const xSliderPanResponder = createSliderPanResponder('x');
+  const ySliderPanResponder = createSliderPanResponder('y');
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <Animated.View
-        style={[
-          styles.header,
-          {
-            opacity: feedbackOpacity,
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
-        <Text style={styles.title}>Transform Controls</Text>
-        <Text style={styles.subtitle}>{selectedShape.type} - {selectedShape.id.slice(-8)}</Text>
-      </Animated.View>
+    <Animated.View style={[styles.container, { transform: [{ scale: scaleAnim }] }]}>
+      <View style={styles.header}>
+        <Text style={styles.title}>
+          {isCharacter ? 'Character Controls' : 'Transform Controls'}
+        </Text>
+        <Text style={styles.subtitle}>
+          {isCharacter 
+            ? `${selectedCharacter!.name} (${selectedCharacter!.type})`
+            : `${selectedEntity.type} shape`
+          }
+        </Text>
+      </View>
 
-      {/* Transform Mode Selector */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Transform Mode</Text>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Transform Mode Selector */}
         <View style={styles.modeSelector}>
           {(['move', 'rotate', 'scale'] as TransformMode[]).map((mode) => (
             <TouchableOpacity
@@ -231,183 +248,334 @@ const TransformControls: React.FC<TransformControlsProps> = ({
                   mode === 'move' ? 'move-outline' :
                   mode === 'rotate' ? 'refresh-outline' : 'resize-outline'
                 }
-                size={20}
-                color={transformMode === mode ? colors.background : colors.text}
+                size={16}
+                color={transformMode === mode ? colors.backgroundAlt : colors.text}
               />
-              <Text
-                style={[
-                  styles.modeButtonText,
-                  transformMode === mode && styles.modeButtonTextActive,
-                ]}
-              >
+              <Text style={[
+                styles.modeText,
+                transformMode === mode && styles.modeTextActive,
+              ]}>
                 {mode.charAt(0).toUpperCase() + mode.slice(1)}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-      </View>
 
-      {/* Precision Mode Toggle */}
-      <View style={styles.section}>
+        {/* Precision Mode Toggle */}
         <TouchableOpacity
           style={[styles.precisionToggle, precisionMode && styles.precisionToggleActive]}
           onPress={() => setPrecisionMode(!precisionMode)}
         >
           <Icon
             name="settings-outline"
-            size={20}
-            color={precisionMode ? colors.background : colors.text}
+            size={16}
+            color={precisionMode ? colors.backgroundAlt : colors.textSecondary}
           />
-          <Text
-            style={[
-              styles.precisionText,
-              precisionMode && styles.precisionTextActive,
-            ]}
-          >
+          <Text style={[
+            styles.precisionText,
+            precisionMode && styles.precisionTextActive,
+          ]}>
             Precision Mode
           </Text>
         </TouchableOpacity>
-      </View>
 
-      {/* Transform Values */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {transformMode === 'move' ? 'Position' :
-           transformMode === 'rotate' ? 'Rotation' : 'Scale'}
-        </Text>
-        
-        {(['x', 'y', 'z'] as const).map((axis) => {
-          const currentValue = transformMode === 'move' ? selectedShape.position[axis] :
-                              transformMode === 'rotate' ? selectedShape.rotation[axis] :
-                              selectedShape.scale[axis];
-          
-          return (
-            <View key={axis} style={styles.axisControl}>
-              <Text style={styles.axisLabel}>{axis.toUpperCase()}</Text>
-              
+        {/* Position Controls */}
+        {transformMode === 'move' && (
+          <View style={styles.controlGroup}>
+            <Text style={styles.groupTitle}>Position</Text>
+            
+            <View style={styles.controlRow}>
+              <Text style={styles.axisLabel}>X:</Text>
               <TouchableOpacity
                 style={styles.adjustButton}
-                onPress={() => handleQuickAdjust(axis, -1)}
+                onPress={() => handleQuickAdjust('x', -1)}
               >
-                <Icon name="remove" size={16} color={colors.background} />
+                <Icon name="remove" size={16} color={colors.text} />
               </TouchableOpacity>
               
-              <View
-                style={styles.sliderContainer}
-                {...createSliderPanResponder(axis).panHandlers}
-              >
-                <Text style={styles.valueText}>
-                  {currentValue.toFixed(precisionMode ? 3 : 2)}
-                </Text>
+              <View style={styles.sliderContainer} {...xSliderPanResponder.panHandlers}>
+                <TextInput
+                  style={styles.valueInput}
+                  value={selectedEntity.position.x.toFixed(2)}
+                  onChangeText={(text) => updatePosition('x', text)}
+                  keyboardType="numeric"
+                />
               </View>
               
               <TouchableOpacity
                 style={styles.adjustButton}
-                onPress={() => handleQuickAdjust(axis, 1)}
+                onPress={() => handleQuickAdjust('x', 1)}
               >
-                <Icon name="add" size={16} color={colors.background} />
+                <Icon name="add" size={16} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.controlRow}>
+              <Text style={styles.axisLabel}>Y:</Text>
+              <TouchableOpacity
+                style={styles.adjustButton}
+                onPress={() => handleQuickAdjust('y', -1)}
+              >
+                <Icon name="remove" size={16} color={colors.text} />
+              </TouchableOpacity>
+              
+              <View style={styles.sliderContainer} {...ySliderPanResponder.panHandlers}>
+                <TextInput
+                  style={styles.valueInput}
+                  value={selectedEntity.position.y.toFixed(2)}
+                  onChangeText={(text) => updatePosition('y', text)}
+                  keyboardType="numeric"
+                />
+              </View>
+              
+              <TouchableOpacity
+                style={styles.adjustButton}
+                onPress={() => handleQuickAdjust('y', 1)}
+              >
+                <Icon name="add" size={16} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Rotation Controls */}
+        {transformMode === 'rotate' && (
+          <View style={styles.controlGroup}>
+            <Text style={styles.groupTitle}>Rotation</Text>
+            
+            <View style={styles.controlRow}>
+              <Text style={styles.axisLabel}>Angle:</Text>
+              <TouchableOpacity
+                style={styles.adjustButton}
+                onPress={() => handleQuickAdjust('x', -1)}
+              >
+                <Icon name="arrow-back" size={16} color={colors.text} />
               </TouchableOpacity>
               
               <TextInput
                 style={styles.valueInput}
-                value={currentValue.toFixed(precisionMode ? 3 : 2)}
-                onChangeText={(text) => {
-                  if (transformMode === 'move') updatePosition(axis, text);
-                  else if (transformMode === 'rotate') updateRotation(axis, text);
-                  else updateScale(axis, text);
-                }}
+                value={selectedEntity.rotation.toFixed(1)}
+                onChangeText={(text) => updateRotation(text)}
                 keyboardType="numeric"
-                selectTextOnFocus
+              />
+              
+              <TouchableOpacity
+                style={styles.adjustButton}
+                onPress={() => handleQuickAdjust('x', 1)}
+              >
+                <Icon name="arrow-forward" size={16} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Scale Controls */}
+        {transformMode === 'scale' && (
+          <View style={styles.controlGroup}>
+            <Text style={styles.groupTitle}>Scale</Text>
+            
+            <View style={styles.controlRow}>
+              <Text style={styles.axisLabel}>X:</Text>
+              <TouchableOpacity
+                style={styles.adjustButton}
+                onPress={() => handleQuickAdjust('x', -1)}
+              >
+                <Icon name="remove" size={16} color={colors.text} />
+              </TouchableOpacity>
+              
+              <TextInput
+                style={styles.valueInput}
+                value={selectedEntity.scale.x.toFixed(2)}
+                onChangeText={(text) => updateScale('x', text)}
+                keyboardType="numeric"
+              />
+              
+              <TouchableOpacity
+                style={styles.adjustButton}
+                onPress={() => handleQuickAdjust('x', 1)}
+              >
+                <Icon name="add" size={16} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.controlRow}>
+              <Text style={styles.axisLabel}>Y:</Text>
+              <TouchableOpacity
+                style={styles.adjustButton}
+                onPress={() => handleQuickAdjust('y', -1)}
+              >
+                <Icon name="remove" size={16} color={colors.text} />
+              </TouchableOpacity>
+              
+              <TextInput
+                style={styles.valueInput}
+                value={selectedEntity.scale.y.toFixed(2)}
+                onChangeText={(text) => updateScale('y', text)}
+                keyboardType="numeric"
+              />
+              
+              <TouchableOpacity
+                style={styles.adjustButton}
+                onPress={() => handleQuickAdjust('y', 1)}
+              >
+                <Icon name="add" size={16} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Character-specific controls */}
+        {isCharacter && (
+          <View style={styles.controlGroup}>
+            <Text style={styles.groupTitle}>Character Stats</Text>
+            
+            <View style={styles.statRow}>
+              <Text style={styles.statLabel}>Health:</Text>
+              <Text style={styles.statValue}>
+                {selectedCharacter!.health}/{selectedCharacter!.maxHealth}
+              </Text>
+              <View style={styles.healthBar}>
+                <View 
+                  style={[
+                    styles.healthFill, 
+                    { 
+                      width: `${(selectedCharacter!.health / selectedCharacter!.maxHealth) * 100}%`,
+                      backgroundColor: selectedCharacter!.health > selectedCharacter!.maxHealth * 0.5 ? colors.success : 
+                                     selectedCharacter!.health > selectedCharacter!.maxHealth * 0.25 ? colors.warning : colors.error
+                    }
+                  ]} 
+                />
+              </View>
+            </View>
+
+            <View style={styles.statRow}>
+              <Text style={styles.statLabel}>Speed:</Text>
+              <Text style={styles.statValue}>{selectedCharacter!.speed}</Text>
+            </View>
+
+            <View style={styles.statRow}>
+              <Text style={styles.statLabel}>Name:</Text>
+              <TextInput
+                style={styles.nameInput}
+                value={selectedCharacter!.name}
+                onChangeText={(text) => onUpdateCharacter(selectedCharacter!.id, { name: text })}
+                placeholder="Character name"
               />
             </View>
-          );
-        })}
-      </View>
+          </View>
+        )}
 
-      {/* Color Picker */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Color</Text>
-        <View style={styles.colorGrid}>
-          {colors_list.map((color) => (
-            <TouchableOpacity
-              key={color}
-              style={[
-                styles.colorButton,
-                { backgroundColor: color },
-                selectedShape.color === color && styles.colorButtonSelected,
-              ]}
-              onPress={() => updateColor(color)}
-            />
-          ))}
+        {/* Color Picker */}
+        <View style={styles.controlGroup}>
+          <Text style={styles.groupTitle}>Color</Text>
+          <View style={styles.colorPicker}>
+            {[
+              colors.primary,
+              colors.error,
+              colors.warning,
+              colors.success,
+              '#FF6B6B',
+              '#4ECDC4',
+              '#45B7D1',
+              '#96CEB4',
+              '#FFEAA7',
+              '#DDA0DD',
+              '#98D8C8',
+              '#F7DC6F',
+            ].map((color) => (
+              <TouchableOpacity
+                key={color}
+                style={[
+                  styles.colorSwatch,
+                  { backgroundColor: color },
+                  selectedEntity.color === color && styles.colorSwatchSelected,
+                ]}
+                onPress={() => updateColor(color)}
+              />
+            ))}
+          </View>
         </View>
-      </View>
 
-      {/* Action Buttons */}
-      <View style={styles.section}>
+        {/* Action Buttons */}
         <View style={styles.actionButtons}>
           <TouchableOpacity style={styles.actionButton} onPress={resetTransform}>
-            <Icon name="refresh-outline" size={20} color={colors.background} />
-            <Text style={styles.actionButtonText}>Reset</Text>
+            <Icon name="refresh-outline" size={16} color={colors.text} />
+            <Text style={styles.actionText}>Reset</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.actionButton} onPress={duplicateShape}>
-            <Icon name="copy-outline" size={20} color={colors.background} />
-            <Text style={styles.actionButtonText}>Duplicate</Text>
+
+          <TouchableOpacity style={styles.actionButton} onPress={duplicateEntity}>
+            <Icon name="copy-outline" size={16} color={colors.text} />
+            <Text style={styles.actionText}>Duplicate</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.actionButton, styles.deleteButton]}
-            onPress={() => onDeleteShape(selectedShape.id)}
+
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.deleteButton]} 
+            onPress={() => {
+              if (isCharacter) {
+                onDeleteCharacter(selectedEntity.id);
+              } else {
+                onDeleteShape(selectedEntity.id);
+              }
+            }}
           >
-            <Icon name="trash-outline" size={20} color={colors.background} />
-            <Text style={styles.actionButtonText}>Delete</Text>
+            <Icon name="trash-outline" size={16} color={colors.backgroundAlt} />
+            <Text style={[styles.actionText, { color: colors.backgroundAlt }]}>Delete</Text>
           </TouchableOpacity>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+
+      {/* Transform Feedback */}
+      <Animated.View style={[styles.transformFeedback, { opacity: feedbackOpacity }]}>
+        <Text style={styles.feedbackText}>Transforming...</Text>
+      </Animated.View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    padding: 16,
-  },
-  noSelectionText: {
-    textAlign: 'center',
-    color: colors.textSecondary,
-    fontSize: 16,
-    marginTop: 40,
+    backgroundColor: colors.backgroundAlt,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    maxHeight: 400,
   },
   header: {
-    marginBottom: 20,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 2,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 12,
   },
   modeSelector: {
     flexDirection: 'row',
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 12,
+    backgroundColor: colors.background,
+    borderRadius: 8,
     padding: 4,
+    marginBottom: 16,
   },
   modeButton: {
     flex: 1,
@@ -416,124 +584,182 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 6,
+    gap: 4,
   },
   modeButtonActive: {
     backgroundColor: colors.primary,
   },
-  modeButtonText: {
+  modeText: {
     fontSize: 12,
+    fontWeight: '500',
     color: colors.text,
-    marginLeft: 4,
   },
-  modeButtonTextActive: {
-    color: colors.background,
-    fontWeight: '600',
+  modeTextActive: {
+    color: colors.backgroundAlt,
   },
   precisionToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: colors.background,
+    marginBottom: 16,
+    gap: 6,
   },
   precisionToggleActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
   },
   precisionText: {
-    fontSize: 14,
-    color: colors.text,
-    marginLeft: 8,
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
   },
   precisionTextActive: {
-    color: colors.background,
-    fontWeight: '600',
+    color: colors.backgroundAlt,
   },
-  axisControl: {
+  controlGroup: {
+    marginBottom: 20,
+  },
+  groupTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  controlRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+    gap: 8,
   },
   axisLabel: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
     color: colors.text,
     width: 20,
   },
   adjustButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    padding: 8,
-    marginHorizontal: 8,
+    width: 32,
+    height: 32,
+    backgroundColor: colors.background,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   sliderContainer: {
     flex: 1,
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginHorizontal: 8,
-    alignItems: 'center',
-  },
-  valueText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  valueInput: {
+    height: 32,
     backgroundColor: colors.background,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+  },
+  valueInput: {
+    flex: 1,
+    textAlign: 'center',
     fontSize: 14,
     color: colors.text,
-    width: 80,
-    textAlign: 'center',
+    fontFamily: 'monospace',
   },
-  colorGrid: {
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    width: 60,
+  },
+  statValue: {
+    fontSize: 12,
+    color: colors.text,
+    fontFamily: 'monospace',
+    width: 60,
+  },
+  healthBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  healthFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  nameInput: {
+    flex: 1,
+    height: 32,
+    backgroundColor: colors.background,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 8,
+    fontSize: 12,
+    color: colors.text,
+  },
+  colorPicker: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: 8,
   },
-  colorButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginBottom: 8,
+  colorSwatch: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  colorButtonSelected: {
+  colorSwatchSelected: {
     borderColor: colors.text,
-    borderWidth: 3,
   },
   actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 8,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 12,
-    marginHorizontal: 4,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 6,
   },
   deleteButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: colors.error,
+    borderColor: colors.error,
   },
-  actionButtonText: {
-    fontSize: 14,
+  actionText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  transformFeedback: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    backgroundColor: colors.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  feedbackText: {
+    fontSize: 10,
+    color: colors.backgroundAlt,
     fontWeight: '600',
-    color: colors.background,
-    marginLeft: 6,
   },
 });
 

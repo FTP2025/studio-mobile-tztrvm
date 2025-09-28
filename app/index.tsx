@@ -3,22 +3,18 @@ import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '../styles/commonStyles';
-import Viewport3D from '../components/Viewport3D';
+import { useShapes } from '../hooks/useShapes';
+import { useCharacters } from '../hooks/useCharacters';
+import { useFileOperations } from '../hooks/useFileOperations';
+import Viewport2D from '../components/Viewport2D';
 import Toolbox from '../components/Toolbox';
 import TransformControls from '../components/TransformControls';
 import FileOperations from '../components/FileOperations';
 import MainMenu from '../components/MainMenu';
 import SimpleBottomSheet from '../components/BottomSheet';
 import Icon from '../components/Icon';
-import { useShapes } from '../hooks/useShapes';
-import { useFileOperations } from '../hooks/useFileOperations';
 
 const GRANTIC: React.FC = () => {
-  const [isMainMenuVisible, setIsMainMenuVisible] = useState(false);
-  const [isToolboxVisible, setIsToolboxVisible] = useState(false);
-  const [isTransformVisible, setIsTransformVisible] = useState(false);
-  const [isFileOperationsVisible, setIsFileOperationsVisible] = useState(false);
-  
   const {
     shapes,
     selectedShapeId,
@@ -26,287 +22,251 @@ const GRANTIC: React.FC = () => {
     selectShape,
     updateShape,
     deleteShape,
-    clearSelection,
+    clearSelection: clearShapeSelection,
     getSelectedShape,
     duplicateShape,
     loadShapes,
+    clearAllShapes,
+    getProjectData,
   } = useShapes();
 
-  const { saveProject, loadProject, exportProject, isSaving, isLoading } = useFileOperations();
+  const {
+    characters,
+    selectedCharacterId,
+    spawnCharacter,
+    selectCharacter,
+    updateCharacter,
+    deleteCharacter,
+    clearSelection: clearCharacterSelection,
+    getSelectedCharacter,
+    duplicateCharacter,
+    loadCharacters,
+    clearAllCharacters,
+  } = useCharacters();
+
+  const { saveProject, loadProject, exportProject } = useFileOperations();
+
+  const [showMainMenu, setShowMainMenu] = useState(false);
+  const [showToolbox, setShowToolbox] = useState(false);
+  const [showTransformControls, setShowTransformControls] = useState(false);
+  const [showFileOperations, setShowFileOperations] = useState(false);
+
+  const selectedShape = getSelectedShape();
+  const selectedCharacter = getSelectedCharacter();
+  const selectedEntityType = selectedShape ? 'shape' : selectedCharacter ? 'character' : null;
 
   const handleShapeSelect = (id: string) => {
     selectShape(id);
-    setIsTransformVisible(true);
-    console.log('Shape selected, opening transform controls');
+    clearCharacterSelection();
+    console.log('Selected shape:', id);
   };
 
-  const handleShapeDeselect = () => {
-    clearSelection();
-    setIsTransformVisible(false);
-    console.log('Shape deselected, closing transform controls');
+  const handleCharacterSelect = (id: string) => {
+    selectCharacter(id);
+    clearShapeSelection();
+    console.log('Selected character:', id);
+  };
+
+  const handleDeselect = () => {
+    clearShapeSelection();
+    clearCharacterSelection();
+    console.log('Deselected all entities');
   };
 
   const handleAddShape = (type: any) => {
     addShape(type);
-    setIsToolboxVisible(false);
-    setIsTransformVisible(true);
-    console.log('Shape added, opening transform controls');
+    closeAllBottomSheets();
+  };
+
+  const handleSpawnCharacter = (type: any) => {
+    spawnCharacter(type);
+    closeAllBottomSheets();
   };
 
   const handleUpdateShape = (id: string, updates: any) => {
     updateShape(id, updates);
   };
 
+  const handleUpdateCharacter = (id: string, updates: any) => {
+    updateCharacter(id, updates);
+  };
+
   const handleDeleteShape = (id: string) => {
-    deleteShape(id);
-    setIsTransformVisible(false);
-    console.log('Shape deleted, closing transform controls');
+    Alert.alert(
+      'Delete Shape',
+      'Are you sure you want to delete this shape?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: () => {
+            deleteShape(id);
+            closeAllBottomSheets();
+          }
+        },
+      ]
+    );
+  };
+
+  const handleDeleteCharacter = (id: string) => {
+    Alert.alert(
+      'Delete Character',
+      'Are you sure you want to delete this character?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: () => {
+            deleteCharacter(id);
+            closeAllBottomSheets();
+          }
+        },
+      ]
+    );
   };
 
   const handleDuplicateShape = () => {
     if (selectedShapeId) {
       duplicateShape(selectedShapeId);
-      console.log('Shape duplicated');
     }
   };
 
-  const handleLoadProject = (newShapes: any[]) => {
-    loadShapes(newShapes);
+  const handleDuplicateCharacter = () => {
+    if (selectedCharacterId) {
+      duplicateCharacter(selectedCharacterId);
+    }
+  };
+
+  const handleLoadProject = (projectData: any) => {
+    if (projectData.shapes) {
+      loadShapes(projectData.shapes);
+    }
+    if (projectData.characters) {
+      loadCharacters(projectData.characters);
+    }
     closeAllBottomSheets();
-    console.log('Project loaded with', newShapes.length, 'shapes');
   };
 
   const closeAllBottomSheets = () => {
-    setIsMainMenuVisible(false);
-    setIsToolboxVisible(false);
-    setIsTransformVisible(false);
-    setIsFileOperationsVisible(false);
+    setShowMainMenu(false);
+    setShowToolbox(false);
+    setShowTransformControls(false);
+    setShowFileOperations(false);
   };
 
-  // Main Menu Actions
   const handleNewProject = () => {
-    if (shapes.length > 0) {
-      Alert.alert(
-        'New Project',
-        'This will clear all current shapes. Are you sure?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'New Project',
-            style: 'destructive',
-            onPress: () => {
-              loadShapes([]);
-              closeAllBottomSheets();
-              Alert.alert('New Project', 'Started a new project!');
-            },
+    Alert.alert(
+      'New Project',
+      'This will clear all shapes and characters. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: () => {
+            clearAllShapes();
+            clearAllCharacters();
+            closeAllBottomSheets();
           },
-        ]
-      );
-    } else {
-      Alert.alert('New Project', 'Already working on a new project!');
-      closeAllBottomSheets();
-    }
+        },
+      ]
+    );
   };
 
   const handleSaveProject = async () => {
-    if (shapes.length === 0) {
-      Alert.alert('No Shapes', 'Add some shapes to your project before saving.');
-      return;
-    }
-
-    const name = `GRANTIC_Project_${new Date().toISOString().split('T')[0]}`;
-    console.log('Saving project with name:', name);
-
-    const result = await saveProject(shapes, name);
-    
-    if (result.success) {
-      Alert.alert(
-        'Project Saved',
-        `Your project "${name}" has been saved successfully!`
-      );
-    } else {
-      Alert.alert('Save Failed', result.error || 'Failed to save project');
+    try {
+      const projectData = {
+        ...getProjectData(),
+        characters: characters.map(char => ({ ...char, selected: false })),
+        characterCount: characters.length,
+      };
+      await saveProject(projectData);
+      closeAllBottomSheets();
+    } catch (error) {
+      console.error('Save failed:', error);
+      Alert.alert('Save Failed', 'Could not save the project.');
     }
   };
 
-  const handleLoadProjectFromMenu = async () => {
-    console.log('Loading project from main menu...');
-    
-    const result = await loadProject();
-    
-    if (result.success && result.data) {
-      Alert.alert(
-        'Load Project',
-        `Load "${result.data.name}" with ${result.data.shapes.length} shapes? This will replace your current project.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Load',
-            onPress: () => {
-              handleLoadProject(result.data!.shapes);
-              Alert.alert('Project Loaded', `"${result.data!.name}" loaded successfully!`);
-            },
-          },
-        ]
-      );
-    } else {
-      Alert.alert('Load Failed', result.error || 'Failed to load project');
-    }
+  const handleLoadProjectFromMenu = () => {
+    setShowFileOperations(true);
+    setShowMainMenu(false);
   };
 
   const handleExportProject = async () => {
-    if (shapes.length === 0) {
-      Alert.alert('No Shapes', 'Add some shapes to your project before exporting.');
-      return;
-    }
-
-    const name = `GRANTIC_Export_${new Date().toISOString().split('T')[0]}`;
-    console.log('Exporting project with name:', name);
-
-    const result = await exportProject(shapes, name);
-    
-    if (result.success) {
-      Alert.alert(
-        'Project Exported',
-        `Your project "${name}" has been exported successfully!`
-      );
-    } else {
-      Alert.alert('Export Failed', result.error || 'Failed to export project');
+    try {
+      const projectData = {
+        ...getProjectData(),
+        characters: characters.map(char => ({ ...char, selected: false })),
+        characterCount: characters.length,
+      };
+      await exportProject(projectData);
+      closeAllBottomSheets();
+    } catch (error) {
+      console.error('Export failed:', error);
+      Alert.alert('Export Failed', 'Could not export the project.');
     }
   };
 
   const handleOpenToolbox = () => {
-    closeAllBottomSheets();
-    setIsToolboxVisible(true);
+    setShowToolbox(true);
+    setShowMainMenu(false);
   };
 
   const handleOpenTransformControls = () => {
-    if (selectedShapeId) {
-      closeAllBottomSheets();
-      setIsTransformVisible(true);
-    } else {
-      Alert.alert('No Shape Selected', 'Please select a shape first to access transform controls.');
-    }
+    setShowTransformControls(true);
+    setShowMainMenu(false);
   };
+
+  const totalEntities = shapes.length + characters.length;
+  const hasSelectedEntity = !!(selectedShape || selectedCharacter);
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Main Viewport */}
-      <Viewport3D
-        shapes={shapes}
-        onShapeSelect={handleShapeSelect}
-        onShapeDeselect={handleShapeDeselect}
-        selectedShapeId={selectedShapeId}
-      />
+      <View style={styles.content}>
+        <Viewport2D
+          shapes={shapes}
+          characters={characters}
+          onShapeSelect={handleShapeSelect}
+          onCharacterSelect={handleCharacterSelect}
+          onDeselect={handleDeselect}
+          selectedEntityId={selectedShapeId || selectedCharacterId}
+          selectedEntityType={selectedEntityType}
+        />
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
+        {/* Main Menu Button */}
         <TouchableOpacity
-          style={[
-            styles.navButton,
-            isMainMenuVisible && styles.navButtonActive
-          ]}
-          onPress={() => {
-            setIsMainMenuVisible(!isMainMenuVisible);
-            setIsToolboxVisible(false);
-            setIsTransformVisible(false);
-            setIsFileOperationsVisible(false);
-          }}
+          style={styles.menuButton}
+          onPress={() => setShowMainMenu(true)}
         >
-          <Icon 
-            name="menu-outline" 
-            size={24} 
-            color={isMainMenuVisible ? colors.background : colors.text} 
-          />
+          <Icon name="menu" size={24} color={colors.text} />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.navButton,
-            isToolboxVisible && styles.navButtonActive
-          ]}
-          onPress={() => {
-            setIsToolboxVisible(!isToolboxVisible);
-            setIsMainMenuVisible(false);
-            setIsTransformVisible(false);
-            setIsFileOperationsVisible(false);
-          }}
-        >
-          <Icon 
-            name="add-circle-outline" 
-            size={24} 
-            color={isToolboxVisible ? colors.background : colors.text} 
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.navButton,
-            isTransformVisible && styles.navButtonActive
-          ]}
-          onPress={() => {
-            if (selectedShapeId) {
-              setIsTransformVisible(!isTransformVisible);
-              setIsMainMenuVisible(false);
-              setIsToolboxVisible(false);
-              setIsFileOperationsVisible(false);
-            } else {
-              console.log('No shape selected for transform');
-            }
-          }}
-          disabled={!selectedShapeId}
-        >
-          <Icon 
-            name="options-outline" 
-            size={24} 
-            color={isTransformVisible ? colors.background : 
-                   selectedShapeId ? colors.text : colors.textSecondary} 
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.navButton,
-            isFileOperationsVisible && styles.navButtonActive
-          ]}
-          onPress={() => {
-            setIsFileOperationsVisible(!isFileOperationsVisible);
-            setIsMainMenuVisible(false);
-            setIsToolboxVisible(false);
-            setIsTransformVisible(false);
-          }}
-        >
-          <Icon 
-            name="folder-outline" 
-            size={24} 
-            color={isFileOperationsVisible ? colors.background : colors.text} 
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navButton}
-          onPress={() => {
-            handleShapeDeselect();
-            closeAllBottomSheets();
-          }}
-        >
-          <Icon name="home-outline" size={24} color={colors.text} />
-        </TouchableOpacity>
-
-        {selectedShapeId && (
+        {/* Quick Action Buttons */}
+        <View style={styles.quickActions}>
           <TouchableOpacity
-            style={styles.navButton}
-            onPress={handleDuplicateShape}
+            style={styles.quickActionButton}
+            onPress={() => setShowToolbox(true)}
           >
-            <Icon name="copy-outline" size={24} color={colors.text} />
+            <Icon name="add-circle" size={24} color={colors.primary} />
           </TouchableOpacity>
-        )}
+
+          {hasSelectedEntity && (
+            <TouchableOpacity
+              style={styles.quickActionButton}
+              onPress={() => setShowTransformControls(true)}
+            >
+              <Icon name="settings" size={24} color={colors.accent} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
-      {/* Main Menu Bottom Sheet */}
+      {/* Bottom Sheets */}
       <SimpleBottomSheet
-        isVisible={isMainMenuVisible}
-        onClose={() => setIsMainMenuVisible(false)}
+        isVisible={showMainMenu}
+        onClose={() => setShowMainMenu(false)}
       >
         <MainMenu
           onNewProject={handleNewProject}
@@ -315,41 +275,44 @@ const GRANTIC: React.FC = () => {
           onExportProject={handleExportProject}
           onOpenToolbox={handleOpenToolbox}
           onOpenTransformControls={handleOpenTransformControls}
-          onClose={() => setIsMainMenuVisible(false)}
+          onClose={() => setShowMainMenu(false)}
           shapesCount={shapes.length}
-          hasSelectedShape={!!selectedShapeId}
+          hasSelectedShape={hasSelectedEntity}
         />
       </SimpleBottomSheet>
 
-      {/* Toolbox Bottom Sheet */}
       <SimpleBottomSheet
-        isVisible={isToolboxVisible}
-        onClose={() => setIsToolboxVisible(false)}
+        isVisible={showToolbox}
+        onClose={() => setShowToolbox(false)}
       >
-        <Toolbox onAddShape={handleAddShape} />
+        <Toolbox
+          onAddShape={handleAddShape}
+          onSpawnCharacter={handleSpawnCharacter}
+        />
       </SimpleBottomSheet>
 
-      {/* Transform Controls Bottom Sheet */}
       <SimpleBottomSheet
-        isVisible={isTransformVisible}
-        onClose={() => setIsTransformVisible(false)}
+        isVisible={showTransformControls}
+        onClose={() => setShowTransformControls(false)}
       >
         <TransformControls
-          selectedShape={getSelectedShape()}
+          selectedShape={selectedShape}
+          selectedCharacter={selectedCharacter}
           onUpdateShape={handleUpdateShape}
+          onUpdateCharacter={handleUpdateCharacter}
           onDeleteShape={handleDeleteShape}
+          onDeleteCharacter={handleDeleteCharacter}
         />
       </SimpleBottomSheet>
 
-      {/* File Operations Bottom Sheet */}
       <SimpleBottomSheet
-        isVisible={isFileOperationsVisible}
-        onClose={() => setIsFileOperationsVisible(false)}
+        isVisible={showFileOperations}
+        onClose={() => setShowFileOperations(false)}
       >
         <FileOperations
           shapes={shapes}
           onLoadProject={handleLoadProject}
-          onClose={() => setIsFileOperationsVisible(false)}
+          onClose={() => setShowFileOperations(false)}
         />
       </SimpleBottomSheet>
     </SafeAreaView>
@@ -361,28 +324,40 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: colors.backgroundAlt,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    ...commonStyles.shadow,
+  content: {
+    flex: 1,
   },
-  navButton: {
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: colors.background,
+  menuButton: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    width: 48,
+    height: 48,
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 48,
-    minHeight: 48,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...commonStyles.shadow,
   },
-  navButtonActive: {
-    backgroundColor: colors.primary,
+  quickActions: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    flexDirection: 'column',
+    gap: 12,
+  },
+  quickActionButton: {
+    width: 56,
+    height: 56,
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...commonStyles.shadow,
   },
 });
 
