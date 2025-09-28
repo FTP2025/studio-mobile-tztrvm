@@ -11,29 +11,23 @@ import {
   Vibration,
 } from 'react-native';
 import { colors, commonStyles } from '../styles/commonStyles';
-import { Shape, Character, ViewportCamera, Entity } from '../types';
+import { Shape, ViewportCamera } from '../types';
 import Icon from './Icon';
 
 interface Viewport2DProps {
   shapes: Shape[];
-  characters: Character[];
   onShapeSelect: (id: string) => void;
-  onCharacterSelect: (id: string) => void;
-  onDeselect: () => void;
-  selectedEntityId?: string | null;
-  selectedEntityType?: 'shape' | 'character' | null;
+  onShapeDeselect: () => void;
+  selectedShapeId?: string | null;
 }
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const Viewport2D: React.FC<Viewport2DProps> = ({
   shapes,
-  characters,
   onShapeSelect,
-  onCharacterSelect,
-  onDeselect,
-  selectedEntityId,
-  selectedEntityType,
+  onShapeDeselect,
+  selectedShapeId,
 }) => {
   const [camera, setCamera] = useState<ViewportCamera>({
     position: { x: 0, y: 0 },
@@ -41,7 +35,7 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
   });
   
   const [isDragging, setIsDragging] = useState(false);
-  const [draggedEntityId, setDraggedEntityId] = useState<string | null>(null);
+  const [draggedShapeId, setDraggedShapeId] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(true);
   
   // Animation values
@@ -66,7 +60,7 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
   const viewportPanResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        return !draggedEntityId && (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5);
+        return !draggedShapeId && (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5);
       },
       onPanResponderGrant: () => {
         setIsDragging(true);
@@ -74,7 +68,7 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
         console.log('Viewport pan started');
       },
       onPanResponderMove: (evt, gestureState) => {
-        if (draggedEntityId) return;
+        if (draggedShapeId) return;
         
         const { dx, dy } = gestureState;
         const sensitivity = 1 / camera.zoom;
@@ -89,39 +83,39 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
       },
       onPanResponderRelease: () => {
         setIsDragging(false);
-        setDraggedEntityId(null);
+        setDraggedShapeId(null);
         console.log('Viewport pan ended');
       },
     })
   ).current;
 
-  const createEntityPanResponder = useCallback((entity: Entity, type: 'shape' | 'character') => {
+  const createShapePanResponder = useCallback((shape: Shape) => {
     return PanResponder.create({
       onMoveShouldSetPanResponder: (evt, gestureState) => {
-        return entity.selected && (Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3);
+        return shape.selected && (Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3);
       },
       onPanResponderGrant: () => {
-        setDraggedEntityId(entity.id);
+        setDraggedShapeId(shape.id);
         Vibration.vibrate(50);
-        console.log(`${type} drag started:`, entity.id);
+        console.log('Shape drag started:', shape.id);
       },
       onPanResponderMove: (evt, gestureState) => {
-        if (!entity.selected) return;
+        if (!shape.selected) return;
         
         const { dx, dy } = gestureState;
         const sensitivity = 2 / camera.zoom;
         
         const newPosition = {
-          x: entity.position.x + dx * sensitivity,
-          y: entity.position.y + dy * sensitivity,
+          x: shape.position.x + dx * sensitivity,
+          y: shape.position.y + dy * sensitivity,
         };
         
-        console.log(`${type} position update:`, entity.id, newPosition);
+        console.log('Shape position update:', shape.id, newPosition);
       },
       onPanResponderRelease: () => {
-        setDraggedEntityId(null);
+        setDraggedShapeId(null);
         Vibration.vibrate(25);
-        console.log(`${type} drag ended:`, entity.id);
+        console.log('Shape drag ended:', shape.id);
       },
     });
   }, [camera.zoom]);
@@ -138,7 +132,7 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
 
   const renderShape = useCallback((shape: Shape, index: number) => {
     const screenPos = worldToScreen(shape.position);
-    const shapePanResponder = createEntityPanResponder(shape, 'shape');
+    const shapePanResponder = createShapePanResponder(shape);
     
     const baseSize = 60;
     const finalWidth = baseSize * shape.scale.x * camera.zoom;
@@ -195,7 +189,7 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
         key={shape.id}
         style={[
           getShapeStyle(),
-          draggedEntityId === shape.id && {
+          draggedShapeId === shape.id && {
             transform: [
               { rotate: `${shape.rotation}deg` },
               { scale: 1.1 },
@@ -205,7 +199,7 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
         {...shapePanResponder.panHandlers}
       >
         <TouchableOpacity
-          style={styles.entityTouch}
+          style={styles.shapeTouch}
           onPress={() => {
             onShapeSelect(shape.id);
             Vibration.vibrate(25);
@@ -227,114 +221,7 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
         </TouchableOpacity>
       </Animated.View>
     );
-  }, [worldToScreen, createEntityPanResponder, onShapeSelect, draggedEntityId, animateCamera, camera.zoom]);
-
-  const renderCharacter = useCallback((character: Character, index: number) => {
-    const screenPos = worldToScreen(character.position);
-    const characterPanResponder = createEntityPanResponder(character, 'character');
-    
-    const baseSize = 80;
-    const finalWidth = baseSize * character.scale.x * camera.zoom;
-    const finalHeight = baseSize * character.scale.y * camera.zoom;
-    
-    const getCharacterIcon = () => {
-      switch (character.type) {
-        case 'player': return 'person';
-        case 'enemy': return 'skull';
-        case 'npc': return 'people';
-        case 'pet': return 'paw';
-        case 'boss': return 'flame';
-        default: return 'person';
-      }
-    };
-
-    const getCharacterColor = () => {
-      switch (character.type) {
-        case 'player': return colors.primary;
-        case 'enemy': return colors.error;
-        case 'npc': return colors.warning;
-        case 'pet': return colors.success;
-        case 'boss': return '#8B0000';
-        default: return character.color;
-      }
-    };
-
-    return (
-      <Animated.View
-        key={character.id}
-        style={[
-          {
-            position: 'absolute',
-            left: screenPos.x - finalWidth / 2,
-            top: screenPos.y - finalHeight / 2,
-            width: finalWidth,
-            height: finalHeight,
-            backgroundColor: getCharacterColor(),
-            borderRadius: finalWidth / 2,
-            borderWidth: character.selected ? 3 : 2,
-            borderColor: character.selected ? colors.accent : colors.backgroundAlt,
-            alignItems: 'center',
-            justifyContent: 'center',
-            transform: [{ rotate: `${character.rotation}deg` }],
-            zIndex: 200 + index,
-          },
-          draggedEntityId === character.id && {
-            transform: [
-              { rotate: `${character.rotation}deg` },
-              { scale: 1.1 },
-            ],
-          },
-        ]}
-        {...characterPanResponder.panHandlers}
-      >
-        <TouchableOpacity
-          style={styles.entityTouch}
-          onPress={() => {
-            onCharacterSelect(character.id);
-            Vibration.vibrate(25);
-            animateCamera();
-          }}
-          activeOpacity={0.8}
-        >
-          <Icon 
-            name={getCharacterIcon()} 
-            size={Math.max(16, finalWidth * 0.4)} 
-            color={colors.backgroundAlt} 
-          />
-          
-          {character.selected && (
-            <View style={styles.selectionIndicator}>
-              <Text style={styles.selectionText}>{character.name || character.type}</Text>
-              <View style={styles.selectionCorners}>
-                <View style={[styles.corner, styles.cornerTL]} />
-                <View style={[styles.corner, styles.cornerTR]} />
-                <View style={[styles.corner, styles.cornerBL]} />
-                <View style={[styles.corner, styles.cornerBR]} />
-              </View>
-            </View>
-          )}
-          
-          {/* Health bar for characters */}
-          {character.health < character.maxHealth && (
-            <View style={styles.healthBarContainer}>
-              <View style={styles.healthBarBackground}>
-                <View 
-                  style={[
-                    styles.healthBarFill, 
-                    { 
-                      width: `${(character.health / character.maxHealth) * 100}%`,
-                      backgroundColor: character.health > character.maxHealth * 0.5 ? colors.success : 
-                                     character.health > character.maxHealth * 0.25 ? colors.warning : colors.error
-                    }
-                  ]} 
-                />
-              </View>
-            </View>
-          )}
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  }, [worldToScreen, createEntityPanResponder, onCharacterSelect, draggedEntityId, animateCamera, camera.zoom]);
+  }, [worldToScreen, createShapePanResponder, onShapeSelect, draggedShapeId, animateCamera, camera.zoom]);
 
   const resetCamera = useCallback(() => {
     setCamera({
@@ -354,8 +241,6 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
     }).start();
     Vibration.vibrate(25);
   }, [showGrid, gridOpacity]);
-
-  const totalEntities = shapes.length + characters.length;
 
   return (
     <Animated.View 
@@ -416,40 +301,34 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
         {/* Render shapes */}
         {shapes.map(renderShape)}
 
-        {/* Render characters */}
-        {characters.map(renderCharacter)}
-
         {/* Viewport Info */}
         <View style={styles.viewportInfo}>
           <Text style={styles.infoText}>
             Camera: X:{camera.position.x.toFixed(1)} Y:{camera.position.y.toFixed(1)}
           </Text>
           <Text style={styles.infoText}>
-            Zoom: {camera.zoom.toFixed(2)}x | Entities: {totalEntities}
+            Zoom: {camera.zoom.toFixed(2)}x | Shapes: {shapes.length}
           </Text>
           <Text style={styles.infoText}>
-            Shapes: {shapes.length} | Characters: {characters.length}
-          </Text>
-          <Text style={styles.infoText}>
-            {isDragging ? 'Panning...' : draggedEntityId ? 'Moving Entity' : 'Ready'}
+            {isDragging ? 'Panning...' : draggedShapeId ? 'Moving Shape' : 'Ready'}
           </Text>
         </View>
 
         {/* Instructions overlay */}
-        {totalEntities === 0 && (
+        {shapes.length === 0 && (
           <View style={styles.instructionsOverlay}>
-            <Text style={styles.instructionsTitle}>Welcome To Grantic Studion</Text>
+            <Text style={styles.instructionsTitle}>Welcome To Grantic Studio 2D</Text>
             <Text style={styles.instructionsText}>
-              • Tap the toolbox to add shapes and characters
+              • Tap the toolbox to add shapes
             </Text>
             <Text style={styles.instructionsText}>
               • Drag to pan the camera
             </Text>
             <Text style={styles.instructionsText}>
-              • Tap entities to select them
+              • Tap shapes to select them
             </Text>
             <Text style={styles.instructionsText}>
-              • Drag selected entities to move them
+              • Drag selected shapes to move them
             </Text>
             <Text style={styles.instructionsText}>
               • Pinch to zoom (coming soon)
@@ -563,7 +442,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: 'monospace',
   },
-  entityTouch: {
+  shapeTouch: {
     flex: 1,
     position: 'relative',
   },
@@ -622,22 +501,6 @@ const styles = StyleSheet.create({
     right: -4,
     borderLeftWidth: 0,
     borderTopWidth: 0,
-  },
-  healthBarContainer: {
-    position: 'absolute',
-    bottom: -8,
-    left: -5,
-    right: -5,
-  },
-  healthBarBackground: {
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  healthBarFill: {
-    height: '100%',
-    borderRadius: 2,
   },
   viewportInfo: {
     position: 'absolute',

@@ -72,7 +72,7 @@ const TransformControls: React.FC<TransformControlsProps> = ({
   const getRotationStep = () => 15;
   const getScaleStep = () => 0.1;
 
-  const updatePosition = (axis: 'x' | 'y' | 'z', value: string | number) => {
+  const updatePosition = (axis: 'x' | 'y', value: string | number) => {
     const numValue = typeof value === 'string' ? parseFloat(value) || 0 : value;
     onUpdateShape(selectedShape.id, {
       position: {
@@ -82,17 +82,14 @@ const TransformControls: React.FC<TransformControlsProps> = ({
     });
   };
 
-  const updateRotation = (axis: 'x' | 'y' | 'z', value: string | number) => {
+  const updateRotation = (value: string | number) => {
     const numValue = typeof value === 'string' ? parseFloat(value) || 0 : value;
     onUpdateShape(selectedShape.id, {
-      rotation: {
-        ...selectedShape.rotation,
-        [axis]: numValue % 360,
-      },
+      rotation: numValue % 360,
     });
   };
 
-  const updateScale = (axis: 'x' | 'y' | 'z', value: string | number) => {
+  const updateScale = (axis: 'x' | 'y', value: string | number) => {
     const numValue = typeof value === 'string' ? parseFloat(value) || 0.01 : value;
     onUpdateShape(selectedShape.id, {
       scale: {
@@ -106,7 +103,7 @@ const TransformControls: React.FC<TransformControlsProps> = ({
     onUpdateShape(selectedShape.id, { color });
   };
 
-  const handleQuickAdjust = (axis: 'x' | 'y' | 'z', direction: 1 | -1) => {
+  const handleQuickAdjust = (axis: 'x' | 'y', direction: 1 | -1) => {
     setIsTransforming(true);
     Vibration.vibrate(10);
     
@@ -118,9 +115,9 @@ const TransformControls: React.FC<TransformControlsProps> = ({
 
   const resetTransform = () => {
     onUpdateShape(selectedShape.id, {
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      scale: { x: 1, y: 1, z: 1 },
+      position: { x: 0, y: 0 },
+      rotation: 0,
+      scale: { x: 1, y: 1 },
     });
   };
 
@@ -129,7 +126,7 @@ const TransformControls: React.FC<TransformControlsProps> = ({
     console.log('Duplicate requested for shape:', selectedShape.id);
   };
 
-  const createSliderPanResponder = (axis: 'x' | 'y' | 'z') => {
+  const createSliderPanResponder = (axis: 'x' | 'y') => {
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
@@ -151,7 +148,6 @@ const TransformControls: React.FC<TransformControlsProps> = ({
 
   const positionSliderX = createSliderPanResponder('x');
   const positionSliderY = createSliderPanResponder('y');
-  const positionSliderZ = createSliderPanResponder('z');
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -172,7 +168,7 @@ const TransformControls: React.FC<TransformControlsProps> = ({
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Position</Text>
         
-        {(['x', 'y', 'z'] as const).map((axis) => (
+        {(['x', 'y'] as const).map((axis) => (
           <View key={axis} style={styles.controlRow}>
             <Text style={styles.axisLabel}>{axis.toUpperCase()}</Text>
             <TouchableOpacity
@@ -182,7 +178,7 @@ const TransformControls: React.FC<TransformControlsProps> = ({
               <Icon name="remove" size={16} color={colors.text} />
             </TouchableOpacity>
             
-            <View style={styles.sliderContainer} {...(axis === 'x' ? positionSliderX.panHandlers : axis === 'y' ? positionSliderY.panHandlers : positionSliderZ.panHandlers)}>
+            <View style={styles.sliderContainer} {...(axis === 'x' ? positionSliderX.panHandlers : positionSliderY.panHandlers)}>
               <TextInput
                 style={styles.valueInput}
                 value={selectedShape.position[axis].toFixed(2)}
@@ -206,39 +202,37 @@ const TransformControls: React.FC<TransformControlsProps> = ({
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Rotation</Text>
         
-        {(['x', 'y', 'z'] as const).map((axis) => (
-          <View key={axis} style={styles.controlRow}>
-            <Text style={styles.axisLabel}>{axis.toUpperCase()}</Text>
-            <TouchableOpacity
-              style={styles.adjustButton}
-              onPress={() => updateRotation(axis, selectedShape.rotation[axis] - getRotationStep())}
-            >
-              <Icon name="remove" size={16} color={colors.text} />
-            </TouchableOpacity>
-            
-            <TextInput
-              style={styles.valueInput}
-              value={selectedShape.rotation[axis].toFixed(0)}
-              onChangeText={(text) => updateRotation(axis, text)}
-              keyboardType="numeric"
-              selectTextOnFocus
-            />
-            
-            <TouchableOpacity
-              style={styles.adjustButton}
-              onPress={() => updateRotation(axis, selectedShape.rotation[axis] + getRotationStep())}
-            >
-              <Icon name="add" size={16} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-        ))}
+        <View style={styles.controlRow}>
+          <Text style={styles.axisLabel}>ROT</Text>
+          <TouchableOpacity
+            style={styles.adjustButton}
+            onPress={() => updateRotation(selectedShape.rotation - getRotationStep())}
+          >
+            <Icon name="remove" size={16} color={colors.text} />
+          </TouchableOpacity>
+          
+          <TextInput
+            style={styles.valueInput}
+            value={selectedShape.rotation.toFixed(0)}
+            onChangeText={(text) => updateRotation(text)}
+            keyboardType="numeric"
+            selectTextOnFocus
+          />
+          
+          <TouchableOpacity
+            style={styles.adjustButton}
+            onPress={() => updateRotation(selectedShape.rotation + getRotationStep())}
+          >
+            <Icon name="add" size={16} color={colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Scale Controls */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Scale</Text>
         
-        {(['x', 'y', 'z'] as const).map((axis) => (
+        {(['x', 'y'] as const).map((axis) => (
           <View key={axis} style={styles.controlRow}>
             <Text style={styles.axisLabel}>{axis.toUpperCase()}</Text>
             <TouchableOpacity
@@ -356,7 +350,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: colors.text,
-    width: 20,
+    width: 30,
   },
   adjustButton: {
     width: 32,

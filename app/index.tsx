@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, commonStyles } from '../styles/commonStyles';
 import { useShapes } from '../hooks/useShapes';
 import { useFileOperations } from '../hooks/useFileOperations';
-import Viewport3D from '../components/Viewport3D';
+import Viewport2D from '../components/Viewport2D';
 import Toolbox from '../components/Toolbox';
 import TransformControls from '../components/TransformControls';
 import FileOperations from '../components/FileOperations';
@@ -152,7 +152,7 @@ const GRANTIC: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Viewport3D
+        <Viewport2D
           shapes={shapes}
           onShapeSelect={handleShapeSelect}
           onShapeDeselect={handleShapeDeselect}
