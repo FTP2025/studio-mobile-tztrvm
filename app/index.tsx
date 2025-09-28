@@ -6,6 +6,7 @@ import { colors, commonStyles } from '../styles/commonStyles';
 import Viewport3D from '../components/Viewport3D';
 import Toolbox from '../components/Toolbox';
 import TransformControls from '../components/TransformControls';
+import FileOperations from '../components/FileOperations';
 import SimpleBottomSheet from '../components/BottomSheet';
 import Icon from '../components/Icon';
 import { useShapes } from '../hooks/useShapes';
@@ -13,6 +14,7 @@ import { useShapes } from '../hooks/useShapes';
 const GRANTIC: React.FC = () => {
   const [isToolboxVisible, setIsToolboxVisible] = useState(false);
   const [isTransformVisible, setIsTransformVisible] = useState(false);
+  const [isFileOperationsVisible, setIsFileOperationsVisible] = useState(false);
   
   const {
     shapes,
@@ -24,6 +26,7 @@ const GRANTIC: React.FC = () => {
     clearSelection,
     getSelectedShape,
     duplicateShape,
+    loadShapes,
   } = useShapes();
 
   const handleShapeSelect = (id: string) => {
@@ -62,6 +65,19 @@ const GRANTIC: React.FC = () => {
     }
   };
 
+  const handleLoadProject = (newShapes: any[]) => {
+    loadShapes(newShapes);
+    setIsFileOperationsVisible(false);
+    setIsTransformVisible(false);
+    console.log('Project loaded with', newShapes.length, 'shapes');
+  };
+
+  const closeAllBottomSheets = () => {
+    setIsToolboxVisible(false);
+    setIsTransformVisible(false);
+    setIsFileOperationsVisible(false);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Main Viewport */}
@@ -81,7 +97,8 @@ const GRANTIC: React.FC = () => {
           ]}
           onPress={() => {
             setIsToolboxVisible(!isToolboxVisible);
-            if (isTransformVisible) setIsTransformVisible(false);
+            setIsTransformVisible(false);
+            setIsFileOperationsVisible(false);
           }}
         >
           <Icon 
@@ -99,7 +116,8 @@ const GRANTIC: React.FC = () => {
           onPress={() => {
             if (selectedShapeId) {
               setIsTransformVisible(!isTransformVisible);
-              if (isToolboxVisible) setIsToolboxVisible(false);
+              setIsToolboxVisible(false);
+              setIsFileOperationsVisible(false);
             } else {
               console.log('No shape selected for transform');
             }
@@ -115,11 +133,28 @@ const GRANTIC: React.FC = () => {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={[
+            styles.navButton,
+            isFileOperationsVisible && styles.navButtonActive
+          ]}
+          onPress={() => {
+            setIsFileOperationsVisible(!isFileOperationsVisible);
+            setIsToolboxVisible(false);
+            setIsTransformVisible(false);
+          }}
+        >
+          <Icon 
+            name="folder-outline" 
+            size={24} 
+            color={isFileOperationsVisible ? colors.backgroundAlt : colors.text} 
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={styles.navButton}
           onPress={() => {
             handleShapeDeselect();
-            setIsToolboxVisible(false);
-            setIsTransformVisible(false);
+            closeAllBottomSheets();
           }}
         >
           <Icon name="home-outline" size={24} color={colors.text} />
@@ -152,6 +187,18 @@ const GRANTIC: React.FC = () => {
           selectedShape={getSelectedShape()}
           onUpdateShape={handleUpdateShape}
           onDeleteShape={handleDeleteShape}
+        />
+      </SimpleBottomSheet>
+
+      {/* File Operations Bottom Sheet */}
+      <SimpleBottomSheet
+        isVisible={isFileOperationsVisible}
+        onClose={() => setIsFileOperationsVisible(false)}
+      >
+        <FileOperations
+          shapes={shapes}
+          onLoadProject={handleLoadProject}
+          onClose={() => setIsFileOperationsVisible(false)}
         />
       </SimpleBottomSheet>
     </SafeAreaView>

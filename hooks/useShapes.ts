@@ -149,6 +149,26 @@ export const useShapes = () => {
     });
   }, [shapes, updateShape]);
 
+  // New functions for project management
+  const loadShapes = useCallback((newShapes: Shape[]) => {
+    setShapes(newShapes);
+    setSelectedShapeId(null);
+    console.log('Loaded shapes from project:', newShapes.length);
+  }, []);
+
+  const clearAllShapes = useCallback(() => {
+    setShapes([]);
+    setSelectedShapeId(null);
+    console.log('Cleared all shapes');
+  }, []);
+
+  const getProjectData = useCallback(() => {
+    return {
+      shapes: shapes.map(shape => ({ ...shape, selected: false })),
+      shapeCount: shapes.length,
+    };
+  }, [shapes]);
+
   return {
     shapes,
     selectedShapeId,
@@ -164,5 +184,8 @@ export const useShapes = () => {
     scaleShape,
     resetShapeTransform,
     snapShapeToGrid,
+    loadShapes,
+    clearAllShapes,
+    getProjectData,
   };
 };
