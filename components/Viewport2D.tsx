@@ -71,7 +71,8 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
         if (draggedShapeId) return;
         
         const { dx, dy } = gestureState;
-        const sensitivity = 1 / camera.zoom;
+        // Reduced camera sensitivity for slower movement
+        const sensitivity = 0.3 / camera.zoom;
         
         setCamera(prev => ({
           ...prev,
@@ -103,7 +104,8 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
         if (!shape.selected) return;
         
         const { dx, dy } = gestureState;
-        const sensitivity = 2 / camera.zoom;
+        // Slightly reduced shape movement sensitivity as well
+        const sensitivity = 1.5 / camera.zoom;
         
         const newPosition = {
           x: shape.position.x + dx * sensitivity,
@@ -322,7 +324,7 @@ const Viewport2D: React.FC<Viewport2DProps> = ({
               • Tap the toolbox to add shapes
             </Text>
             <Text style={styles.instructionsText}>
-              • Drag to pan the camera
+              • Drag to pan the camera (slower movement)
             </Text>
             <Text style={styles.instructionsText}>
               • Tap shapes to select them
