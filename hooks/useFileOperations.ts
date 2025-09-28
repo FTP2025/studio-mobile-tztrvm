@@ -139,10 +139,60 @@ export const useFileOperations = () => {
     }
   }, []);
 
+  const saveAsFile = useCallback(async (shapes: Shape[], fileName?: string) => {
+    try {
+      setIsSaving(true);
+      console.log('Starting save as file...');
+
+      if (shapes.length === 0) {
+        return { success: false, error: 'No shapes to save' };
+      }
+
+      const projectData: ProjectData = {
+        version: '1.0.0',
+        name: fileName || `GRANTIC_${new Date().toISOString().split('T')[0]}_${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        shapes: shapes.map(shape => ({
+          ...shape,
+          selected: false
+        }))
+      };
+
+      const jsonString = JSON.stringify(projectData, null, 2);
+      const finalFileName = `${projectData.name}.grantic`;
+      const fileUri = `${FileSystem.cacheDirectory}${finalFileName}`;
+
+      await FileSystem.writeAsStringAsync(fileUri, jsonString, {
+        encoding: FileSystem.EncodingType.UTF8
+      });
+      
+      console.log('File saved to:', fileUri);
+
+      // Automatically share the file
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/json',
+          dialogTitle: 'Save GRANTIC Project As...',
+        });
+        console.log('File shared for saving');
+      } else {
+        console.log('Sharing not available on this platform');
+      }
+
+      return { success: true, fileName: finalFileName, fileUri };
+    } catch (error) {
+      console.error('Error in save as file:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Failed to save file' };
+    } finally {
+      setIsSaving(false);
+    }
+  }, []);
+
   return {
     saveProject,
     loadProject,
     exportProject,
+    saveAsFile,
     isSaving,
     isLoading,
   };
